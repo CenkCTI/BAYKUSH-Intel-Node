@@ -1,0 +1,7 @@
+{
+  "resultsPerPage": 1,
+  "startIndex": 0,
+  "totalResults": 1,
+  "version": "2.0",
+  "vulnerabilities": [{"cve":{"id":"CVE-2026-16666","sourceIdentifier":"cna@example.test","published":"2026-08-01T00:00:00.000Z","lastModified":"2026-08-02T00:00:00.000Z","vulnStatus":"FutureStatus","futureNvdField":{"nested":"preserve"},"cisaExploitAdd":"2026-08-01","cisaActionDue":"2026-08-20","cisaRequiredAction":"Source-native mirrored field","references":[]}}]
+}

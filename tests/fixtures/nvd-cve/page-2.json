@@ -1,0 +1,21 @@
+{
+  "resultsPerPage": 1,
+  "startIndex": 2,
+  "totalResults": 3,
+  "format": "NVD_CVE",
+  "version": "2.0",
+  "timestamp": "2026-08-12T00:00:01.000Z",
+  "vulnerabilities": [
+    {
+      "cve": {
+        "id": "CVE-2026-10003",
+        "sourceIdentifier": "cna@example.test",
+        "published": "2026-08-11T19:00:00.000Z",
+        "lastModified": "2026-08-11T23:00:00.000Z",
+        "vulnStatus": "Rejected",
+        "descriptions": [{"lang":"en","value":"Rejected reason: fixture record."}],
+        "references": []
+      }
+    }
+  ]
+}

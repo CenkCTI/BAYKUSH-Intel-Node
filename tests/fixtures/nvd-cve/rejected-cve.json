@@ -1,0 +1,7 @@
+{
+  "resultsPerPage": 1,
+  "startIndex": 0,
+  "totalResults": 1,
+  "version": "2.0",
+  "vulnerabilities": [{"cve":{"id":"CVE-2026-19999","sourceIdentifier":"cna@example.test","published":"2026-08-01T00:00:00.000Z","lastModified":"2026-08-02T00:00:00.000Z","vulnStatus":"Rejected","descriptions":[{"lang":"en","value":"Rejected reason: duplicate assignment."}]}}]
+}
