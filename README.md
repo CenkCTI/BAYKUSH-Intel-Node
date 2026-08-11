@@ -66,6 +66,7 @@ The first deployment target is an Oracle VM, but the runtime is designed to rema
 - [Development Roadmap](docs/ROADMAP.md)
 - [NODE-0 Acceptance](docs/ACCEPTANCE.md)
 - [NODE-1 Runtime Backbone](docs/NODE_1_RUNTIME.md)
+- [NODE-2A Production Source Foundation](docs/NODE_2A_PRODUCTION_FOUNDATION.md)
 
 ## Development sequence
 
@@ -105,8 +106,8 @@ Additional sources are admitted only after the measurement and CİTEM Global Vie
 
 ## Current phase
 
-**NODE-1 — Runtime Backbone**
+**NODE-2A — Production Source Foundation**
 
-NODE-1 implements the durable source-agnostic runtime: PostgreSQL source registry, bounded collection runs/work units, leases, checkpoints, immutable raw-record revisions, source health, scheduler/worker processes, `TEST_SYNTHETIC`, operational health API, Docker runtime, and CI acceptance.
+NODE-2A upgrades the source-agnostic runtime for real providers: bootstrap/live run semantics, durable retry backoff, bounded fixed-endpoint HTTP transport, registry synchronization, operator-controlled source enablement, raw-to-canonical normalization jobs, immutable canonical evidence, a dedicated normalizer process, and PostgreSQL-backed acceptance.
 
-Production source adapters, historical measurements, CİTEM Global View integration, Internet telemetry, and ANLAK projection remain in later phases.
+The five production source adapters are intentionally not admitted in NODE-2A. They enter one by one in NODE-2B through NODE-2F, followed by shadow parity and live acceptance before NODE-2 is closed.
