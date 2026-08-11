@@ -5,6 +5,8 @@ import type { ClassifiedFailure, SourceAdapter } from "../contracts/source.js";
 import { canonicalJsonStringify, type PreparedRawRecord } from "./raw-record.js";
 import { retryDelaySeconds } from "./retry.js";
 
+const RAW_INSERT_BATCH_SIZE = 250;
+
 export interface ClaimedRun {
   id: string;
   sourceDefinitionId: string;
@@ -235,6 +237,63 @@ async function assertLease(client: PoolClient, runId: string, workUnitId: string
   if (!leased.rowCount) throw new Error("Collection lease was lost before persistence");
 }
 
+async function insertRawBatch(input: {
+  client: PoolClient;
+  run: ClaimedRun;
+  work: ClaimedWorkUnit;
+  adapter: SourceAdapter;
+  records: readonly PreparedRawRecord[];
+}): Promise<string[]> {
+  if (!input.records.length) return [];
+  const values: string[] = [];
+  const params: unknown[] = [];
+  for (const record of input.records) {
+    const start = params.length;
+    values.push(`($${start + 1},$${start + 2},$${start + 3},$${start + 4},$${start + 5},$${start + 6}::jsonb,$${start + 7},$${start + 8},$${start + 9},$${start + 10},$${start + 11},$${start + 12})`);
+    params.push(
+      input.run.sourceDefinitionId,
+      input.run.id,
+      input.work.id,
+      record.sourceRecordId,
+      record.payloadSha256,
+      record.payloadJson,
+      record.publishedAt,
+      record.effectiveAt,
+      record.upstreamUpdatedAt,
+      record.sourceUrl,
+      input.adapter.definition.adapterVersion,
+      record.sourceSchemaVersion,
+    );
+  }
+  const result = await input.client.query<{ id: string }>(
+    `INSERT INTO raw_source_records(
+       source_definition_id, collection_run_id, collection_work_unit_id,
+       source_record_id, payload_sha256, payload, published_at, effective_at,
+       upstream_updated_at, source_url, adapter_version, source_schema_version
+     ) VALUES ${values.join(",")}
+     ON CONFLICT (source_definition_id, source_record_id, payload_sha256) DO NOTHING
+     RETURNING id`,
+    params,
+  );
+  return result.rows.map((row) => row.id);
+}
+
+async function enqueueNormalizationJobs(input: {
+  client: PoolClient;
+  rawRecordIds: readonly string[];
+  sourceDefinitionId: string;
+  normalizationVersion: string;
+}): Promise<void> {
+  if (!input.rawRecordIds.length) return;
+  await input.client.query(
+    `INSERT INTO normalization_jobs(raw_record_id, source_definition_id, normalization_version, state)
+     SELECT raw.raw_record_id, $1, $2, 'QUEUED'
+     FROM unnest($3::uuid[]) AS raw(raw_record_id)
+     ON CONFLICT (raw_record_id, normalization_version) DO NOTHING`,
+    [input.sourceDefinitionId, input.normalizationVersion, input.rawRecordIds],
+  );
+}
+
 export async function persistWorkSuccess(input: {
   run: ClaimedRun;
   work: ClaimedWorkUnit;
@@ -248,32 +307,22 @@ export async function persistWorkSuccess(input: {
   await withTransaction(async (client) => {
     await assertLease(client, input.run.id, input.work.id, input.workerId);
     let inserted = 0;
-    for (const record of input.records) {
-      const result = await client.query<{ id: string }>(
-        `INSERT INTO raw_source_records(
-           source_definition_id, collection_run_id, collection_work_unit_id,
-           source_record_id, payload_sha256, payload, published_at, effective_at,
-           upstream_updated_at, source_url, adapter_version, source_schema_version
-         ) VALUES ($1,$2,$3,$4,$5,$6::jsonb,$7,$8,$9,$10,$11,$12)
-         ON CONFLICT (source_definition_id, source_record_id, payload_sha256) DO NOTHING
-         RETURNING id`,
-        [
-          input.run.sourceDefinitionId, input.run.id, input.work.id,
-          record.sourceRecordId, record.payloadSha256, record.payloadJson,
-          record.publishedAt, record.effectiveAt, record.upstreamUpdatedAt,
-          record.sourceUrl, input.adapter.definition.adapterVersion, record.sourceSchemaVersion,
-        ],
-      );
-      const rawRecordId = result.rows[0]?.id;
-      if (!rawRecordId) continue;
-      inserted += 1;
-      await client.query(
-        `INSERT INTO normalization_jobs(
-           raw_record_id, source_definition_id, normalization_version, state
-         ) VALUES ($1,$2,$3,'QUEUED')
-         ON CONFLICT (raw_record_id, normalization_version) DO NOTHING`,
-        [rawRecordId, input.run.sourceDefinitionId, input.adapter.normalizationVersion],
-      );
+    for (let offset = 0; offset < input.records.length; offset += RAW_INSERT_BATCH_SIZE) {
+      const batch = input.records.slice(offset, offset + RAW_INSERT_BATCH_SIZE);
+      const rawRecordIds = await insertRawBatch({
+        client,
+        run: input.run,
+        work: input.work,
+        adapter: input.adapter,
+        records: batch,
+      });
+      inserted += rawRecordIds.length;
+      await enqueueNormalizationJobs({
+        client,
+        rawRecordIds,
+        sourceDefinitionId: input.run.sourceDefinitionId,
+        normalizationVersion: input.adapter.normalizationVersion,
+      });
     }
 
     const checkpointJson = canonicalJsonStringify(input.nextCheckpoint);
