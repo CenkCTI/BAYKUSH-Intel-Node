@@ -69,6 +69,8 @@ The first deployment target is an Oracle VM, but the runtime is designed to rema
 - [NODE-2A Production Source Foundation](docs/NODE_2A_PRODUCTION_FOUNDATION.md)
 - [NODE-2B CISA KEV](docs/NODE_2B_CISA_KEV.md)
 - [CISA KEV Source Admission](docs/SOURCE_ADMISSION_CISA_KEV.md)
+- [NODE-2C NVD CVE](docs/NODE_2C_NVD_CVE.md)
+- [NVD CVE Source Admission](docs/SOURCE_ADMISSION_NVD_CVE.md)
 
 ## Development sequence
 
@@ -108,8 +110,8 @@ Additional sources are admitted only after the measurement and CİTEM Global Vie
 
 ## Current phase
 
-**NODE-2B — CISA KEV Production Adapter**
+**NODE-2C — NVD CVE Production Adapter**
 
-NODE-2B admits the first real production intelligence source. CISA KEV is collected as one bounded, fail-closed snapshot; unchanged entries remain idempotent, real revisions remain immutable, catalog membership is preserved separately in snapshot manifests, and canonical output is explicitly `KNOWN_EXPLOITED_VULNERABILITY` rather than attack telemetry.
+NODE-2C admits NVD CVE API 2.0 through fixed last-modified windows, offset pagination, conservative provider pacing, restart-safe checkpoints, immutable raw CVE revisions, and source-semantic `VULNERABILITY_RECORD` normalization.
 
-CISA KEV remains disabled by default and requires explicit operator enablement. NVD, FIRST EPSS, ThreatFox, and MalwareBazaar remain out of scope until their respective NODE-2 subphases.
+NVD remains disabled by default. An API key is optional and header-only. NVD/CISA mirrored fields do not create a second KEV assertion, CVSS is not collapsed into a single risk score, and CPE applicability logic remains intact in raw source truth. FIRST EPSS, ThreatFox, and MalwareBazaar remain out of scope until their respective NODE-2 subphases.
