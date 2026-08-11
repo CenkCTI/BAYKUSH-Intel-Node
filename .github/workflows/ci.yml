@@ -46,6 +46,8 @@ jobs:
           npm run test:migration
       - name: Runtime acceptance
         run: npm run test:runtime
+      - name: NODE-2A production foundation acceptance
+        run: npm run test:node2a
       - name: Build
         run: npm run build
       - name: Build container
