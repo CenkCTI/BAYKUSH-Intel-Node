@@ -134,3 +134,94 @@ export async function listSourceStates(): Promise<Array<{
     lastSuccessAt: row.last_success_at?.toISOString() ?? null,
   }));
 }
+
+export async function getSourceStatus(sourceKey: string): Promise<{
+  sourceKey: string;
+  displayName: string;
+  enabled: boolean;
+  healthStatus: string;
+  nextDueAt: string | null;
+  lastAttemptAt: string | null;
+  lastSuccessAt: string | null;
+  latestRun: { state: string; trigger: string; purpose: string; finishedAt: string | null } | null;
+  checkpointRevision: number | null;
+  checkpoint: unknown | null;
+  normalization: { queued: number; running: number; failed: number };
+} | null> {
+  const result = await pool.query<{
+    source_key: string;
+    display_name: string;
+    enabled: boolean;
+    health_status: string;
+    next_due_at: Date | null;
+    last_attempt_at: Date | null;
+    last_success_at: Date | null;
+    run_state: string | null;
+    run_trigger: string | null;
+    run_purpose: string | null;
+    run_finished_at: Date | null;
+    checkpoint_revision: number | null;
+    checkpoint: unknown | null;
+    normalization_queued: number;
+    normalization_running: number;
+    normalization_failed: number;
+  }>(
+    `SELECT d.source_key, d.display_name, d.enabled,
+            COALESCE(h.health_status, 'UNKNOWN') AS health_status,
+            s.next_due_at, h.last_attempt_at, h.last_success_at,
+            latest.state AS run_state, latest.trigger AS run_trigger,
+            latest.purpose AS run_purpose, latest.finished_at AS run_finished_at,
+            c.revision AS checkpoint_revision, c.checkpoint,
+            COALESCE(n.queued, 0)::int AS normalization_queued,
+            COALESCE(n.running, 0)::int AS normalization_running,
+            COALESCE(n.failed, 0)::int AS normalization_failed
+     FROM source_definitions d
+     LEFT JOIN source_schedule_state s ON s.source_definition_id = d.id
+     LEFT JOIN source_health h ON h.source_definition_id = d.id
+     LEFT JOIN source_checkpoints c ON c.source_definition_id = d.id
+     LEFT JOIN LATERAL (
+       SELECT r.state, r.trigger, r.purpose, r.finished_at
+       FROM collection_runs r
+       WHERE r.source_definition_id = d.id
+       ORDER BY r.created_at DESC
+       LIMIT 1
+     ) latest ON true
+     LEFT JOIN LATERAL (
+       SELECT
+         (count(*) FILTER (WHERE j.state = 'QUEUED'))::int AS queued,
+         (count(*) FILTER (WHERE j.state = 'RUNNING'))::int AS running,
+         (count(*) FILTER (WHERE j.state = 'FAILED'))::int AS failed
+       FROM normalization_jobs j
+       WHERE j.source_definition_id = d.id
+     ) n ON true
+     WHERE d.source_key = $1`,
+    [sourceKey],
+  );
+  const row = result.rows[0];
+  if (!row) return null;
+  const latestRun = row.run_state && row.run_trigger && row.run_purpose
+    ? {
+      state: row.run_state,
+      trigger: row.run_trigger,
+      purpose: row.run_purpose,
+      finishedAt: row.run_finished_at?.toISOString() ?? null,
+    }
+    : null;
+  return {
+    sourceKey: row.source_key,
+    displayName: row.display_name,
+    enabled: row.enabled,
+    healthStatus: row.health_status,
+    nextDueAt: row.next_due_at?.toISOString() ?? null,
+    lastAttemptAt: row.last_attempt_at?.toISOString() ?? null,
+    lastSuccessAt: row.last_success_at?.toISOString() ?? null,
+    latestRun,
+    checkpointRevision: row.checkpoint_revision,
+    checkpoint: row.checkpoint,
+    normalization: {
+      queued: row.normalization_queued,
+      running: row.normalization_running,
+      failed: row.normalization_failed,
+    },
+  };
+}
