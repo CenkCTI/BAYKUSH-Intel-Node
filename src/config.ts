@@ -17,7 +17,13 @@ const envSchema = z.object({
   WORKER_IDLE_MS: z.coerce.number().int().min(100).max(60_000).default(1_000),
   WORKER_LEASE_SECONDS: z.coerce.number().int().min(10).max(900).default(60),
   WORKER_MAX_ATTEMPTS: z.coerce.number().int().min(1).max(20).default(3),
+  WORKER_RETRY_BASE_SECONDS: z.coerce.number().int().min(1).max(300).default(5),
+  WORKER_RETRY_MAX_SECONDS: z.coerce.number().int().min(1).max(3_600).default(300),
+  NORMALIZER_IDLE_MS: z.coerce.number().int().min(100).max(60_000).default(1_000),
+  NORMALIZER_LEASE_SECONDS: z.coerce.number().int().min(10).max(900).default(60),
+  NORMALIZER_MAX_ATTEMPTS: z.coerce.number().int().min(1).max(20).default(3),
   HEARTBEAT_INTERVAL_MS: z.coerce.number().int().min(1_000).max(60_000).default(10_000),
+  SOURCE_HTTP_TIMEOUT_MS: z.coerce.number().int().min(1_000).max(120_000).default(30_000),
   MAX_RECORDS_PER_WORK_UNIT: z.coerce.number().int().min(1).max(10_000).default(100),
   MAX_RAW_RECORD_BYTES: z.coerce.number().int().min(1_024).max(10 * 1024 * 1024).default(262_144),
   ENABLE_TEST_SYNTHETIC: booleanFromEnv.default(false),
@@ -30,6 +36,9 @@ const parsed = envSchema.parse(process.env);
 if (parsed.SYNTHETIC_PAGE_SIZE > parsed.MAX_RECORDS_PER_WORK_UNIT) {
   throw new Error("SYNTHETIC_PAGE_SIZE cannot exceed MAX_RECORDS_PER_WORK_UNIT");
 }
+if (parsed.WORKER_RETRY_BASE_SECONDS > parsed.WORKER_RETRY_MAX_SECONDS) {
+  throw new Error("WORKER_RETRY_BASE_SECONDS cannot exceed WORKER_RETRY_MAX_SECONDS");
+}
 
 export const config = Object.freeze({
   databaseUrl: parsed.DATABASE_URL,
@@ -40,7 +49,13 @@ export const config = Object.freeze({
   workerIdleMs: parsed.WORKER_IDLE_MS,
   workerLeaseSeconds: parsed.WORKER_LEASE_SECONDS,
   workerMaxAttempts: parsed.WORKER_MAX_ATTEMPTS,
+  workerRetryBaseSeconds: parsed.WORKER_RETRY_BASE_SECONDS,
+  workerRetryMaxSeconds: parsed.WORKER_RETRY_MAX_SECONDS,
+  normalizerIdleMs: parsed.NORMALIZER_IDLE_MS,
+  normalizerLeaseSeconds: parsed.NORMALIZER_LEASE_SECONDS,
+  normalizerMaxAttempts: parsed.NORMALIZER_MAX_ATTEMPTS,
   heartbeatIntervalMs: parsed.HEARTBEAT_INTERVAL_MS,
+  sourceHttpTimeoutMs: parsed.SOURCE_HTTP_TIMEOUT_MS,
   maxRecordsPerWorkUnit: parsed.MAX_RECORDS_PER_WORK_UNIT,
   maxRawRecordBytes: parsed.MAX_RAW_RECORD_BYTES,
   enableTestSynthetic: parsed.ENABLE_TEST_SYNTHETIC,

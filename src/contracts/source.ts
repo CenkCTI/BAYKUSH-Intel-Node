@@ -62,6 +62,7 @@ export interface ClassifiedFailure {
   code: CollectionFailureCode;
   retryable: boolean;
   message: string;
+  retryAfterSeconds?: number;
 }
 
 export interface FetchResult {
@@ -73,6 +74,7 @@ export interface FetchResult {
 
 export interface SourceAdapter {
   readonly definition: SourceDefinition;
+  readonly normalizationVersion: string;
   readonly checkpointSchemaVersion: string;
   readonly checkpointSchema: z.ZodType<unknown>;
   readonly workDescriptorSchema: z.ZodType<unknown>;
@@ -89,5 +91,6 @@ export interface SourceAdapter {
 
 export function assertAdapterContract(adapter: SourceAdapter): void {
   sourceDefinitionSchema.parse(adapter.definition);
+  if (!adapter.normalizationVersion.trim()) throw new Error("normalizationVersion is required");
   if (!adapter.checkpointSchemaVersion.trim()) throw new Error("checkpointSchemaVersion is required");
 }

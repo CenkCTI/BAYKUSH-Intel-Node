@@ -16,6 +16,8 @@ try {
     "raw_source_records",
     "source_health",
     "runtime_heartbeats",
+    "normalization_jobs",
+    "canonical_evidence_records",
   ];
   for (const table of expectedTables) {
     const result = await pool.query("SELECT to_regclass($1) AS name", [`public.${table}`]);
@@ -47,12 +49,13 @@ try {
     JSON.stringify({ hello: "world" }),
     "node-1-test-v1",
   ];
-  await pool.query(
+  const raw = await pool.query(
     `INSERT INTO raw_source_records(
        source_definition_id, collection_run_id, collection_work_unit_id,
        source_record_id, payload_sha256, payload, adapter_version
      ) VALUES ($1,$2,$3,$4,$5,$6::jsonb,$7)
-     ON CONFLICT DO NOTHING`,
+     ON CONFLICT DO NOTHING
+     RETURNING id`,
     params,
   );
   await pool.query(
@@ -78,7 +81,36 @@ try {
   }
   if (!immutable) throw new Error("raw record update immutability failed");
 
-  console.log("NODE-1 migration acceptance passed");
+  const rawId = raw.rows[0]?.id;
+  if (!rawId) throw new Error("migration raw fixture missing");
+  await pool.query(
+    `INSERT INTO canonical_evidence_records(
+       raw_record_id, source_definition_id, source_record_id, upstream_origin_key,
+       canonical_key, record_kind, received_at, entities, facts, reference_urls,
+       semantic_boundary, adapter_version, normalization_version,
+       semantic_contract_version, normalized_sha256
+     ) VALUES ($1,$2,$3,'BAYKUSH_TEST','test:migration','UNKNOWN',now(),'[]'::jsonb,'[]'::jsonb,'[]'::jsonb,
+       '{"represents":"fixture","doesNotRepresent":"production truth"}'::jsonb,
+       'node-1-test-v1','node-2a-test-normalization-v1','node-1-sem-v1',$4)`,
+    [rawId, source.rows[0].id, "synthetic:migration-test", "b".repeat(64)],
+  );
+  let canonicalImmutable = false;
+  try {
+    await pool.query(
+      "UPDATE canonical_evidence_records SET facts = '[]'::jsonb WHERE canonical_key = 'test:migration'",
+    );
+  } catch (error) {
+    canonicalImmutable = String(error).includes("immutable");
+  }
+  if (!canonicalImmutable) throw new Error("canonical evidence update immutability failed");
+
+  await pool.query(
+    `INSERT INTO runtime_heartbeats(component, instance_id, heartbeat_at)
+     VALUES ('NORMALIZER','migration-test',now())
+     ON CONFLICT (component, instance_id) DO UPDATE SET heartbeat_at = EXCLUDED.heartbeat_at`,
+  );
+
+  console.log("NODE-2A migration acceptance passed");
 } finally {
   await pool.end();
 }

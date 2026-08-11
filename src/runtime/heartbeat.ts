@@ -1,7 +1,7 @@
 import { config } from "../config.js";
 import { recordHeartbeat } from "./repository.js";
 
-export function startHeartbeatLoop(component: "API" | "SCHEDULER" | "WORKER", metadata: Record<string, unknown> = {}): () => void {
+export function startHeartbeatLoop(component: "API" | "SCHEDULER" | "WORKER" | "NORMALIZER", metadata: Record<string, unknown> = {}): () => void {
   let stopped = false;
   const send = async () => {
     if (stopped) return;

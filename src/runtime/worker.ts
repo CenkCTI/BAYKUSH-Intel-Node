@@ -113,6 +113,8 @@ export async function workerTick(workerId = config.instanceId): Promise<boolean>
       workerId,
       failure,
       maxAttempts: config.workerMaxAttempts,
+      retryBaseSeconds: config.workerRetryBaseSeconds,
+      retryMaxSeconds: config.workerRetryMaxSeconds,
     });
   } finally {
     clearTimeout(timeout);

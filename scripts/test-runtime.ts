@@ -22,6 +22,8 @@ async function resetAcceptanceState(): Promise<string> {
   const sourceDefinitionId = source.rows[0]?.id;
   assert.ok(sourceDefinitionId, "TEST_SYNTHETIC source definition must exist");
 
+  await pool.query("DELETE FROM canonical_evidence_records WHERE source_definition_id = $1", [sourceDefinitionId]);
+  await pool.query("DELETE FROM normalization_jobs WHERE source_definition_id = $1", [sourceDefinitionId]);
   await pool.query("DELETE FROM raw_source_records WHERE source_definition_id = $1", [sourceDefinitionId]);
   await pool.query("DELETE FROM source_checkpoints WHERE source_definition_id = $1", [sourceDefinitionId]);
   await pool.query(
@@ -135,7 +137,7 @@ async function main(): Promise<void> {
   assert.equal(replayRawCount.rows[0]?.count, "25");
   assert.deepEqual((await loadCheckpoint(sourceDefinitionId))?.checkpoint, { nextSequence: 25 });
 
-  // A failed work unit must not advance the checkpoint and a retryable failure must requeue the same unit.
+  // A failed work unit must not advance the checkpoint and a retryable failure must back off.
   await forceDue(sourceDefinitionId);
   assert.equal(await enqueueDueRuns([sourceKey], 1), 1);
   const failedRun = await claimNextRun("failure-worker", 60);
@@ -151,19 +153,35 @@ async function main(): Promise<void> {
     run: failedRun,
     work: failedWork,
     workerId: "failure-worker",
-    failure: { code: "RATE_LIMITED", retryable: true, message: "runtime acceptance fixture" },
+    failure: { code: "RATE_LIMITED", retryable: true, message: "runtime acceptance fixture", retryAfterSeconds: 30 },
     maxAttempts: 3,
   });
   assert.deepEqual((await loadCheckpoint(sourceDefinitionId))?.checkpoint, checkpointBeforeFailure?.checkpoint);
-  const retryState = await pool.query<{ run_state: string; work_state: string }>(
-    `SELECT r.state AS run_state, w.state AS work_state
+  const retryState = await pool.query<{ run_state: string; work_state: string; run_delayed: boolean; work_delayed: boolean }>(
+    `SELECT r.state AS run_state, w.state AS work_state,
+            r.available_at > now() AS run_delayed,
+            w.available_at > now() AS work_delayed
      FROM collection_runs r JOIN collection_work_units w ON w.run_id = r.id
      WHERE r.id = $1 AND w.id = $2`,
     [failedRun.id, failedWork.id],
   );
-  assert.deepEqual(retryState.rows[0], { run_state: "QUEUED", work_state: "QUEUED" });
+  assert.deepEqual(retryState.rows[0], {
+    run_state: "QUEUED",
+    work_state: "QUEUED",
+    run_delayed: true,
+    work_delayed: true,
+  });
+  assert.equal(await claimNextRun("too-early-worker", 10), null, "backoff must prevent an immediate retry claim");
 
-  // Stale run and work leases are reclaimable by another worker.
+  // Once the backoff window is due, the same run/work can be reclaimed, including after a stale lease.
+  await pool.query(
+    `UPDATE collection_runs SET available_at = now() - interval '1 second' WHERE id = $1`,
+    [failedRun.id],
+  );
+  await pool.query(
+    `UPDATE collection_work_units SET available_at = now() - interval '1 second' WHERE id = $1`,
+    [failedWork.id],
+  );
   const staleRun = await claimNextRun("stale-worker", 10);
   assert.equal(staleRun?.id, failedRun.id);
   const staleWork = await claimNextWorkUnit(failedRun.id, "stale-worker", 10);
@@ -182,7 +200,7 @@ async function main(): Promise<void> {
   assert.equal(reclaimedWork?.id, failedWork.id);
 
   await setSourceEnabled(sourceKey, false);
-  console.log("NODE-1 runtime acceptance passed");
+  console.log("NODE-1/NODE-2A runtime acceptance passed");
 }
 
 try {

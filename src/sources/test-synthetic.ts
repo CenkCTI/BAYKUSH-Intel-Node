@@ -50,6 +50,7 @@ export function createTestSyntheticAdapter(options: { recordsPerRun: number; pag
       },
       enabledByDefault: false,
     },
+    normalizationVersion: "node-2a-test-normalization-v1",
     checkpointSchemaVersion: "test-synthetic-checkpoint-v1",
     checkpointSchema,
     workDescriptorSchema,

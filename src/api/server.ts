@@ -32,14 +32,14 @@ async function health(response: ServerResponse): Promise<void> {
           heartbeatAt: row.heartbeat_at.toISOString(),
         })),
       },
-      meta: { serviceVersion: "node-1-v1" },
+      meta: { serviceVersion: "node-2a-v1" },
     });
   } catch {
     sendJson(response, 503, {
       apiVersion: "v1",
       generatedAt: new Date().toISOString(),
       data: { status: "degraded", database: "unavailable", heartbeats: [] },
-      meta: { serviceVersion: "node-1-v1" },
+      meta: { serviceVersion: "node-2a-v1" },
     });
   }
 }
