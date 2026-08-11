@@ -5,6 +5,7 @@ import { pool, withTransaction } from "../db/pool.js";
 export async function syncSourceDefinitions(adapters: readonly SourceAdapter[]): Promise<void> {
   for (const adapter of adapters) {
     const definition = sourceDefinitionSchema.parse(adapter.definition);
+    const authRequirement = definition.authRequirement ?? (definition.requiresAuth ? "REQUIRED" : "NONE");
     await withTransaction(async (client) => {
       const result = await client.query<{ id: string; enabled: boolean }>(
         `INSERT INTO source_definitions(
@@ -12,12 +13,12 @@ export async function syncSourceDefinitions(adapters: readonly SourceAdapter[]):
            source_class, observation_basis, authority_type, collection_mode,
            default_poll_interval_seconds, minimum_poll_interval_seconds,
            supports_historical_retrieval, recovery_strategy, historical_max_window_seconds,
-           requires_auth, credential_kind, adapter_version, semantic_contract_version,
+           requires_auth, auth_requirement, credential_kind, adapter_version, semantic_contract_version,
            license_class, commercial_use_status, redistribution_status,
            attribution_requirement, terms_reference, represents, does_not_represent,
            enabled_by_default, enabled
          ) VALUES (
-           $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$25
+           $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$26
          )
          ON CONFLICT (source_key) DO UPDATE SET
            display_name = EXCLUDED.display_name,
@@ -33,6 +34,7 @@ export async function syncSourceDefinitions(adapters: readonly SourceAdapter[]):
            recovery_strategy = EXCLUDED.recovery_strategy,
            historical_max_window_seconds = EXCLUDED.historical_max_window_seconds,
            requires_auth = EXCLUDED.requires_auth,
+           auth_requirement = EXCLUDED.auth_requirement,
            credential_kind = EXCLUDED.credential_kind,
            adapter_version = EXCLUDED.adapter_version,
            semantic_contract_version = EXCLUDED.semantic_contract_version,
@@ -61,6 +63,7 @@ export async function syncSourceDefinitions(adapters: readonly SourceAdapter[]):
           definition.recoveryStrategy,
           definition.historicalMaxWindowSeconds,
           definition.requiresAuth,
+          authRequirement,
           definition.credentialKind,
           definition.adapterVersion,
           definition.semanticContractVersion,

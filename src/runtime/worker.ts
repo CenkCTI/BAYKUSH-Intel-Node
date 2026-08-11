@@ -77,6 +77,8 @@ export async function workerTick(workerId = config.instanceId): Promise<boolean>
 
     const nextCheckpoint = adapter.checkpointSchema.parse(result.nextCheckpoint);
     const nextWork = result.nextWork === null ? null : adapter.workDescriptorSchema.parse(result.nextWork);
+    const sourceRawBound = adapter.maxRawRecordBytes ?? config.maxRawRecordBytes;
+    const effectiveRawBound = Math.min(sourceRawBound, config.globalMaxRawRecordBytes);
     const records = result.records.map((record) => {
       const times = adapter.extractTimes(record);
       return prepareRawRecord({
@@ -87,7 +89,7 @@ export async function workerTick(workerId = config.instanceId): Promise<boolean>
         upstreamUpdatedAt: times.upstreamUpdatedAt,
         sourceUrl: adapter.sourceReference(record),
         sourceSchemaVersion: adapter.sourceSchemaVersion(record),
-      }, config.maxRawRecordBytes);
+      }, effectiveRawBound);
     });
 
     await persistWorkSuccess({

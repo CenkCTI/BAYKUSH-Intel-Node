@@ -8,6 +8,11 @@ const booleanFromEnv = z.preprocess((value) => {
   return value;
 }, z.boolean());
 
+const optionalSecretFromEnv = z.preprocess((value) => {
+  if (typeof value === "string" && value.trim() === "") return undefined;
+  return value;
+}, z.string().min(1).max(4_096).optional());
+
 const envSchema = z.object({
   DATABASE_URL: z.string().min(1),
   PORT: z.coerce.number().int().min(1).max(65535).default(8080),
@@ -26,7 +31,9 @@ const envSchema = z.object({
   SOURCE_HTTP_TIMEOUT_MS: z.coerce.number().int().min(1_000).max(120_000).default(30_000),
   MAX_RECORDS_PER_WORK_UNIT: z.coerce.number().int().min(1).max(10_000).default(100),
   GLOBAL_MAX_RECORDS_PER_WORK_UNIT: z.coerce.number().int().min(1).max(10_000).default(10_000),
-  MAX_RAW_RECORD_BYTES: z.coerce.number().int().min(1_024).max(10 * 1024 * 1024).default(262_144),
+  MAX_RAW_RECORD_BYTES: z.coerce.number().int().min(1_024).max(64 * 1024 * 1024).default(262_144),
+  GLOBAL_MAX_RAW_RECORD_BYTES: z.coerce.number().int().min(1_024).max(64 * 1024 * 1024).default(8 * 1024 * 1024),
+  NVD_API_KEY: optionalSecretFromEnv,
   ENABLE_TEST_SYNTHETIC: booleanFromEnv.default(false),
   SYNTHETIC_RECORDS_PER_RUN: z.coerce.number().int().min(1).max(10_000).default(25),
   SYNTHETIC_PAGE_SIZE: z.coerce.number().int().min(1).max(1_000).default(10),
@@ -36,6 +43,9 @@ const parsed = envSchema.parse(process.env);
 
 if (parsed.MAX_RECORDS_PER_WORK_UNIT > parsed.GLOBAL_MAX_RECORDS_PER_WORK_UNIT) {
   throw new Error("MAX_RECORDS_PER_WORK_UNIT cannot exceed GLOBAL_MAX_RECORDS_PER_WORK_UNIT");
+}
+if (parsed.MAX_RAW_RECORD_BYTES > parsed.GLOBAL_MAX_RAW_RECORD_BYTES) {
+  throw new Error("MAX_RAW_RECORD_BYTES cannot exceed GLOBAL_MAX_RAW_RECORD_BYTES");
 }
 if (parsed.SYNTHETIC_PAGE_SIZE > parsed.MAX_RECORDS_PER_WORK_UNIT) {
   throw new Error("SYNTHETIC_PAGE_SIZE cannot exceed MAX_RECORDS_PER_WORK_UNIT");
@@ -63,6 +73,8 @@ export const config = Object.freeze({
   maxRecordsPerWorkUnit: parsed.MAX_RECORDS_PER_WORK_UNIT,
   globalMaxRecordsPerWorkUnit: parsed.GLOBAL_MAX_RECORDS_PER_WORK_UNIT,
   maxRawRecordBytes: parsed.MAX_RAW_RECORD_BYTES,
+  globalMaxRawRecordBytes: parsed.GLOBAL_MAX_RAW_RECORD_BYTES,
+  nvdApiKey: parsed.NVD_API_KEY,
   enableTestSynthetic: parsed.ENABLE_TEST_SYNTHETIC,
   syntheticRecordsPerRun: parsed.SYNTHETIC_RECORDS_PER_RUN,
   syntheticPageSize: parsed.SYNTHETIC_PAGE_SIZE,

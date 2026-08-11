@@ -1,0 +1,25 @@
+{
+  "resultsPerPage": 1,
+  "startIndex": 0,
+  "totalResults": 1,
+  "format": "NVD_CVE",
+  "version": "2.0",
+  "timestamp": "2026-08-12T02:00:00.000Z",
+  "vulnerabilities": [
+    {
+      "cve": {
+        "id": "CVE-2026-10001",
+        "sourceIdentifier": "security@example.test",
+        "published": "2026-08-11T20:00:00.000Z",
+        "lastModified": "2026-08-12T01:30:00.000Z",
+        "vulnStatus": "Modified",
+        "descriptions": [{"lang":"en","value":"Fixture vulnerability one with revised wording."}],
+        "metrics": {"cvssMetricV31":[{"source":"nvd@nist.gov","type":"Primary","cvssData":{"version":"3.1","vectorString":"CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H","baseScore":9.8,"baseSeverity":"CRITICAL"}}]},
+        "references": [{"url":"https://vendor.example/advisories/CVE-2026-10001","source":"security@example.test"}],
+        "cisaExploitAdd": "2026-08-11",
+        "cisaActionDue": "2026-08-20",
+        "cisaRequiredAction": "Apply vendor mitigations."
+      }
+    }
+  ]
+}

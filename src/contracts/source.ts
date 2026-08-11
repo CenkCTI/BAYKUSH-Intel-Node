@@ -9,6 +9,7 @@ export const recoveryStrategySchema = z.enum([
   "SNAPSHOT_RECONSTRUCTION",
   "LIVE_ONLY",
 ]);
+export const authRequirementSchema = z.enum(["NONE", "OPTIONAL", "REQUIRED"]);
 
 export const sourceDefinitionSchema = z.object({
   sourceKey: z.string().regex(/^[A-Z0-9_]+$/).max(128),
@@ -24,7 +25,9 @@ export const sourceDefinitionSchema = z.object({
   supportsHistoricalRetrieval: z.boolean(),
   recoveryStrategy: recoveryStrategySchema,
   historicalMaxWindowSeconds: z.number().int().positive().nullable(),
+  // Legacy compatibility remains until all admitted adapters have moved to authRequirement.
   requiresAuth: z.boolean(),
+  authRequirement: authRequirementSchema.optional(),
   credentialKind: z.string().min(1).max(128).nullable(),
   adapterVersion: z.string().min(1).max(128),
   semanticContractVersion: z.string().min(1).max(128),
@@ -76,6 +79,8 @@ export interface SourceAdapter {
   readonly definition: SourceDefinition;
   /** Source-specific bounded result size for one work unit. Runtime hard caps still apply. */
   readonly maxRecordsPerWorkUnit?: number;
+  /** Source-specific raw JSON record bound. Runtime global hard caps still apply. */
+  readonly maxRawRecordBytes?: number;
   readonly normalizationVersion: string;
   readonly checkpointSchemaVersion: string;
   readonly checkpointSchema: z.ZodType<unknown>;
@@ -92,10 +97,21 @@ export interface SourceAdapter {
 }
 
 export function assertAdapterContract(adapter: SourceAdapter): void {
-  sourceDefinitionSchema.parse(adapter.definition);
+  const definition = sourceDefinitionSchema.parse(adapter.definition);
+  if (definition.authRequirement === "REQUIRED" && !definition.requiresAuth) {
+    throw new Error("authRequirement REQUIRED must keep legacy requiresAuth=true during compatibility period");
+  }
+  if (definition.authRequirement === "NONE" && definition.requiresAuth) {
+    throw new Error("authRequirement NONE is incompatible with legacy requiresAuth=true");
+  }
   if (adapter.maxRecordsPerWorkUnit !== undefined) {
     if (!Number.isInteger(adapter.maxRecordsPerWorkUnit) || adapter.maxRecordsPerWorkUnit < 1 || adapter.maxRecordsPerWorkUnit > 10_000) {
       throw new Error("maxRecordsPerWorkUnit must be an integer between 1 and 10000");
+    }
+  }
+  if (adapter.maxRawRecordBytes !== undefined) {
+    if (!Number.isInteger(adapter.maxRawRecordBytes) || adapter.maxRawRecordBytes < 1_024 || adapter.maxRawRecordBytes > 64 * 1024 * 1024) {
+      throw new Error("maxRawRecordBytes must be an integer between 1 KiB and 64 MiB");
     }
   }
   if (!adapter.normalizationVersion.trim()) throw new Error("normalizationVersion is required");

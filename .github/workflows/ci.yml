@@ -50,6 +50,8 @@ jobs:
         run: npm run test:node2a
       - name: NODE-2B CISA KEV acceptance
         run: npm run test:node2b
+      - name: NODE-2C NVD CVE acceptance
+        run: npm run test:node2c
       - name: Build
         run: npm run build
       - name: Build container

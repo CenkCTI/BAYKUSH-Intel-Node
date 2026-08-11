@@ -1,0 +1,7 @@
+{
+  "resultsPerPage": 1,
+  "startIndex": 0,
+  "totalResults": 1,
+  "version": "2.0",
+  "vulnerabilities": [{"cve":{"id":"CVE-2026-17777","sourceIdentifier":"cna@example.test","published":"2026-08-01T00:00:00.000Z","lastModified":"2026-08-02T00:00:00.000Z","vulnStatus":"Analyzed","configurations":[{"nodes":[{"operator":"AND","negate":false,"children":[{"operator":"OR","cpeMatch":[{"vulnerable":true,"criteria":"cpe:2.3:a:vendor:product:*:*:*:*:*:*:*:*"},{"vulnerable":true,"criteria":"cpe:2.3:a:vendor:other:*:*:*:*:*:*:*:*"}]},{"operator":"OR","cpeMatch":[{"vulnerable":false,"criteria":"cpe:2.3:o:vendor:os:*:*:*:*:*:*:*:*"}]}]}]}],"references":[]}}]
+}

@@ -1,6 +1,7 @@
 import { config } from "../config.js";
 import { assertAdapterContract, type SourceAdapter } from "../contracts/source.js";
 import { createCisaKevAdapter } from "./cisa-kev.js";
+import { createNvdCveAdapterV2 } from "./nvd-cve-normalization-v2.js";
 import { createTestSyntheticAdapter } from "./test-synthetic.js";
 
 const adapters = [
@@ -9,6 +10,7 @@ const adapters = [
     pageSize: config.syntheticPageSize,
   }),
   createCisaKevAdapter(),
+  createNvdCveAdapterV2(config.nvdApiKey === undefined ? {} : { apiKey: config.nvdApiKey }),
 ];
 
 for (const adapter of adapters) assertAdapterContract(adapter);

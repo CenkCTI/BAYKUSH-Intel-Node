@@ -1,0 +1,45 @@
+{
+  "resultsPerPage": 2,
+  "startIndex": 0,
+  "totalResults": 3,
+  "format": "NVD_CVE",
+  "version": "2.0",
+  "timestamp": "2026-08-12T00:00:00.000Z",
+  "vulnerabilities": [
+    {
+      "cve": {
+        "id": "CVE-2026-10001",
+        "sourceIdentifier": "security@example.test",
+        "published": "2026-08-11T20:00:00.000Z",
+        "lastModified": "2026-08-11T22:00:00.000Z",
+        "vulnStatus": "Analyzed",
+        "descriptions": [{"lang":"en","value":"Fixture vulnerability one."}],
+        "metrics": {
+          "cvssMetricV31": [{
+            "source": "nvd@nist.gov",
+            "type": "Primary",
+            "cvssData": {"version":"3.1","vectorString":"CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H","baseScore":9.8,"baseSeverity":"CRITICAL"},
+            "exploitabilityScore": 3.9,
+            "impactScore": 5.9
+          }]
+        },
+        "weaknesses": [{"source":"nvd@nist.gov","type":"Primary","description":[{"lang":"en","value":"CWE-94"}]}],
+        "configurations": [{"nodes":[{"operator":"OR","negate":false,"cpeMatch":[{"vulnerable":true,"criteria":"cpe:2.3:a:example:gateway:*:*:*:*:*:*:*:*"}]}]}],
+        "references": [{"url":"https://vendor.example/advisories/CVE-2026-10001","source":"security@example.test","tags":["Vendor Advisory"]}],
+        "cisaExploitAdd": "2026-08-11",
+        "futureAdditiveField": "preserve-me"
+      }
+    },
+    {
+      "cve": {
+        "id": "CVE-2026-10002",
+        "sourceIdentifier": "cna@example.test",
+        "published": "2026-08-11T21:00:00.000Z",
+        "lastModified": "2026-08-11T21:30:00.000Z",
+        "vulnStatus": "Awaiting Analysis",
+        "descriptions": [{"lang":"en","value":"Fixture vulnerability two."}],
+        "references": [{"url":"https://example.test/CVE-2026-10002","source":"cna@example.test"}]
+      }
+    }
+  ]
+}
