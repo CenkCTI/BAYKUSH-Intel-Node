@@ -13,6 +13,7 @@
     "lint": "eslint .",
     "test": "vitest run",
     "test:migration": "node scripts/test-migration.mjs",
+    "test:runtime": "tsx scripts/test-runtime.ts",
     "db:migrate": "node scripts/migrate.mjs",
     "dev:api": "tsx src/api/main.ts",
     "dev:scheduler": "tsx src/scheduler/main.ts",

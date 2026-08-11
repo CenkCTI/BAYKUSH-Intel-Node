@@ -44,6 +44,8 @@ jobs:
         run: |
           npm run db:migrate
           npm run test:migration
+      - name: Runtime acceptance
+        run: npm run test:runtime
       - name: Build
         run: npm run build
       - name: Build container
