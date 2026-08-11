@@ -59,10 +59,12 @@ export async function workerTick(workerId = config.instanceId): Promise<boolean>
   try {
     const descriptor = adapter.workDescriptorSchema.parse(work.descriptor);
     const result = await adapter.fetch({ work: descriptor, signal: controller.signal });
-    if (result.records.length > config.maxRecordsPerWorkUnit) {
+    const sourceBound = adapter.maxRecordsPerWorkUnit ?? config.maxRecordsPerWorkUnit;
+    const effectiveBound = Math.min(sourceBound, config.globalMaxRecordsPerWorkUnit);
+    if (result.records.length > effectiveBound) {
       throw new CollectionFailure(
         "PAYLOAD_LIMIT_EXCEEDED",
-        `Work unit returned ${result.records.length} records; limit is ${config.maxRecordsPerWorkUnit}`,
+        `Work unit returned ${result.records.length} records; effective source limit is ${effectiveBound}`,
         false,
       );
     }
