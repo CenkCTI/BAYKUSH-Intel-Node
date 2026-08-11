@@ -1,0 +1,52 @@
+name: NODE validation
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: baykush
+          POSTGRES_USER: baykush
+          POSTGRES_PASSWORD: baykush
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U baykush -d baykush"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 20
+    env:
+      DATABASE_URL: postgres://baykush:baykush@127.0.0.1:5432/baykush
+      ENABLE_TEST_SYNTHETIC: false
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Install dependencies
+        run: npm install
+      - name: Lint
+        run: npm run lint
+      - name: Typecheck
+        run: npm run typecheck
+      - name: Unit tests
+        run: npm test
+      - name: Apply migrations
+        run: npm run db:migrate
+      - name: Verify migration immutability and idempotency
+        run: |
+          npm run db:migrate
+          npm run test:migration
+      - name: Runtime acceptance
+        run: npm run test:runtime
+      - name: Build
+        run: npm run build
+      - name: Build container
+        run: docker build -t baykush-intelligence-node:ci .

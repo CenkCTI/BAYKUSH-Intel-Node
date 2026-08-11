@@ -1,0 +1,70 @@
+services:
+  postgres:
+    image: postgres:16-bookworm
+    environment:
+      POSTGRES_DB: baykush
+      POSTGRES_USER: baykush
+      POSTGRES_PASSWORD: baykush
+    volumes:
+      - baykush_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U baykush -d baykush"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
+
+  migrate:
+    build: .
+    command: ["node", "scripts/migrate.mjs"]
+    environment: &node-env
+      DATABASE_URL: postgres://baykush:baykush@postgres:5432/baykush
+      ENABLE_TEST_SYNTHETIC: ${ENABLE_TEST_SYNTHETIC:-false}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+
+  api:
+    build: .
+    command: ["node", "dist/api/main.js"]
+    environment:
+      <<: *node-env
+      PORT: 8080
+      NODE_INSTANCE_ID: api-1
+    ports:
+      - "8080:8080"
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:8080/v1/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  scheduler:
+    build: .
+    command: ["node", "dist/scheduler/main.js"]
+    environment:
+      <<: *node-env
+      NODE_INSTANCE_ID: scheduler-1
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    restart: unless-stopped
+
+  worker:
+    build: .
+    command: ["node", "dist/worker/main.js"]
+    environment:
+      <<: *node-env
+      NODE_INSTANCE_ID: worker-1
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    restart: unless-stopped
+
+volumes:
+  baykush_pgdata:

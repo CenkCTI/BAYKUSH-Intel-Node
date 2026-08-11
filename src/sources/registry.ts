@@ -1,0 +1,16 @@
+import { config } from "../config.js";
+import { assertAdapterContract, type SourceAdapter } from "../contracts/source.js";
+import { createTestSyntheticAdapter } from "./test-synthetic.js";
+
+const adapters = [createTestSyntheticAdapter({
+  recordsPerRun: config.syntheticRecordsPerRun,
+  pageSize: config.syntheticPageSize,
+})];
+
+for (const adapter of adapters) assertAdapterContract(adapter);
+
+export const adapterRegistry = new Map<string, SourceAdapter>(
+  adapters.map((adapter) => [adapter.definition.sourceKey, adapter]),
+);
+
+export const registeredSourceKeys = Object.freeze([...adapterRegistry.keys()]);
