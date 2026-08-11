@@ -50,7 +50,7 @@ The first deployment target is an Oracle VM, but the runtime is designed to rema
 9. Every derived value must remain traceable to source provenance.
 10. Public/global intelligence remains separate from private analyst workspaces.
 
-## NODE-0 architecture documents
+## Architecture and runtime documents
 
 - [Architecture](docs/ARCHITECTURE.md)
 - [Source Adapter Contract](docs/SOURCE_CONTRACT.md)
@@ -65,6 +65,7 @@ The first deployment target is an Oracle VM, but the runtime is designed to rema
 - [Initial Source Catalog](docs/INITIAL_SOURCE_CATALOG.md)
 - [Development Roadmap](docs/ROADMAP.md)
 - [NODE-0 Acceptance](docs/ACCEPTANCE.md)
+- [NODE-1 Runtime Backbone](docs/NODE_1_RUNTIME.md)
 
 ## Development sequence
 
@@ -104,6 +105,8 @@ Additional sources are admitted only after the measurement and CİTEM Global Vie
 
 ## Current phase
 
-**NODE-0 — Architecture & Contracts**
+**NODE-1 — Runtime Backbone**
 
-NODE-0 is documentation/contract work only. Production collectors, provider credentials, Oracle deployment code, CİTEM integration, and ANLAK implementation are intentionally out of scope.
+NODE-1 implements the durable source-agnostic runtime: PostgreSQL source registry, bounded collection runs/work units, leases, checkpoints, immutable raw-record revisions, source health, scheduler/worker processes, `TEST_SYNTHETIC`, operational health API, Docker runtime, and CI acceptance.
+
+Production source adapters, historical measurements, CİTEM Global View integration, Internet telemetry, and ANLAK projection remain in later phases.
