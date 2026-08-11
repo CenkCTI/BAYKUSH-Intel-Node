@@ -60,7 +60,7 @@ CREATE TABLE canonical_evidence_records (
   upstream_updated_at timestamptz,
   entities jsonb NOT NULL DEFAULT '[]'::jsonb CHECK (jsonb_typeof(entities) = 'array'),
   facts jsonb NOT NULL DEFAULT '[]'::jsonb CHECK (jsonb_typeof(facts) = 'array'),
-  references jsonb NOT NULL DEFAULT '[]'::jsonb CHECK (jsonb_typeof(references) = 'array'),
+  reference_urls jsonb NOT NULL DEFAULT '[]'::jsonb CHECK (jsonb_typeof(reference_urls) = 'array'),
   semantic_boundary jsonb NOT NULL CHECK (jsonb_typeof(semantic_boundary) = 'object'),
   adapter_version text NOT NULL,
   normalization_version text NOT NULL,
