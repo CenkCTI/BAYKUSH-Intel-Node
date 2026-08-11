@@ -74,6 +74,8 @@ export interface FetchResult {
 
 export interface SourceAdapter {
   readonly definition: SourceDefinition;
+  /** Source-specific bounded result size for one work unit. Runtime hard caps still apply. */
+  readonly maxRecordsPerWorkUnit?: number;
   readonly normalizationVersion: string;
   readonly checkpointSchemaVersion: string;
   readonly checkpointSchema: z.ZodType<unknown>;
@@ -91,6 +93,11 @@ export interface SourceAdapter {
 
 export function assertAdapterContract(adapter: SourceAdapter): void {
   sourceDefinitionSchema.parse(adapter.definition);
+  if (adapter.maxRecordsPerWorkUnit !== undefined) {
+    if (!Number.isInteger(adapter.maxRecordsPerWorkUnit) || adapter.maxRecordsPerWorkUnit < 1 || adapter.maxRecordsPerWorkUnit > 10_000) {
+      throw new Error("maxRecordsPerWorkUnit must be an integer between 1 and 10000");
+    }
+  }
   if (!adapter.normalizationVersion.trim()) throw new Error("normalizationVersion is required");
   if (!adapter.checkpointSchemaVersion.trim()) throw new Error("checkpointSchemaVersion is required");
 }

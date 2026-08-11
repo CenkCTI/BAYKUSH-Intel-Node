@@ -1,11 +1,15 @@
 import { config } from "../config.js";
 import { assertAdapterContract, type SourceAdapter } from "../contracts/source.js";
+import { createCisaKevAdapter } from "./cisa-kev.js";
 import { createTestSyntheticAdapter } from "./test-synthetic.js";
 
-const adapters = [createTestSyntheticAdapter({
-  recordsPerRun: config.syntheticRecordsPerRun,
-  pageSize: config.syntheticPageSize,
-})];
+const adapters = [
+  createTestSyntheticAdapter({
+    recordsPerRun: config.syntheticRecordsPerRun,
+    pageSize: config.syntheticPageSize,
+  }),
+  createCisaKevAdapter(),
+];
 
 for (const adapter of adapters) assertAdapterContract(adapter);
 
