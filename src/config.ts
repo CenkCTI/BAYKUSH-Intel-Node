@@ -1,0 +1,49 @@
+import os from "node:os";
+import { z } from "zod";
+
+const booleanFromEnv = z.preprocess((value) => {
+  if (typeof value !== "string") return value;
+  if (["1", "true", "yes", "on"].includes(value.toLowerCase())) return true;
+  if (["0", "false", "no", "off"].includes(value.toLowerCase())) return false;
+  return value;
+}, z.boolean());
+
+const envSchema = z.object({
+  DATABASE_URL: z.string().min(1),
+  PORT: z.coerce.number().int().min(1).max(65535).default(8080),
+  NODE_INSTANCE_ID: z.string().min(1).max(128).optional(),
+  DATABASE_POOL_MAX: z.coerce.number().int().min(1).max(50).default(10),
+  SCHEDULER_TICK_MS: z.coerce.number().int().min(250).max(60_000).default(5_000),
+  WORKER_IDLE_MS: z.coerce.number().int().min(100).max(60_000).default(1_000),
+  WORKER_LEASE_SECONDS: z.coerce.number().int().min(10).max(900).default(60),
+  WORKER_MAX_ATTEMPTS: z.coerce.number().int().min(1).max(20).default(3),
+  HEARTBEAT_INTERVAL_MS: z.coerce.number().int().min(1_000).max(60_000).default(10_000),
+  MAX_RECORDS_PER_WORK_UNIT: z.coerce.number().int().min(1).max(10_000).default(100),
+  MAX_RAW_RECORD_BYTES: z.coerce.number().int().min(1_024).max(10 * 1024 * 1024).default(262_144),
+  ENABLE_TEST_SYNTHETIC: booleanFromEnv.default(false),
+  SYNTHETIC_RECORDS_PER_RUN: z.coerce.number().int().min(1).max(10_000).default(25),
+  SYNTHETIC_PAGE_SIZE: z.coerce.number().int().min(1).max(1_000).default(10),
+});
+
+const parsed = envSchema.parse(process.env);
+
+if (parsed.SYNTHETIC_PAGE_SIZE > parsed.MAX_RECORDS_PER_WORK_UNIT) {
+  throw new Error("SYNTHETIC_PAGE_SIZE cannot exceed MAX_RECORDS_PER_WORK_UNIT");
+}
+
+export const config = Object.freeze({
+  databaseUrl: parsed.DATABASE_URL,
+  port: parsed.PORT,
+  instanceId: parsed.NODE_INSTANCE_ID ?? `${os.hostname()}:${process.pid}`,
+  databasePoolMax: parsed.DATABASE_POOL_MAX,
+  schedulerTickMs: parsed.SCHEDULER_TICK_MS,
+  workerIdleMs: parsed.WORKER_IDLE_MS,
+  workerLeaseSeconds: parsed.WORKER_LEASE_SECONDS,
+  workerMaxAttempts: parsed.WORKER_MAX_ATTEMPTS,
+  heartbeatIntervalMs: parsed.HEARTBEAT_INTERVAL_MS,
+  maxRecordsPerWorkUnit: parsed.MAX_RECORDS_PER_WORK_UNIT,
+  maxRawRecordBytes: parsed.MAX_RAW_RECORD_BYTES,
+  enableTestSynthetic: parsed.ENABLE_TEST_SYNTHETIC,
+  syntheticRecordsPerRun: parsed.SYNTHETIC_RECORDS_PER_RUN,
+  syntheticPageSize: parsed.SYNTHETIC_PAGE_SIZE,
+});
