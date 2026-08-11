@@ -122,7 +122,7 @@ async function persistNormalizationSuccess(input: {
         `INSERT INTO canonical_evidence_records(
            raw_record_id, source_definition_id, source_record_id, upstream_origin_key,
            canonical_key, record_kind, received_at, published_at, effective_at,
-           upstream_updated_at, entities, facts, references, semantic_boundary,
+           upstream_updated_at, entities, facts, reference_urls, semantic_boundary,
            adapter_version, normalization_version, semantic_contract_version, normalized_sha256
          ) VALUES (
            $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11::jsonb,$12::jsonb,$13::jsonb,$14::jsonb,$15,$16,$17,$18
