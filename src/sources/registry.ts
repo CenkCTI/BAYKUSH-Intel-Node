@@ -10,7 +10,7 @@ const adapters = [
     pageSize: config.syntheticPageSize,
   }),
   createCisaKevAdapter(),
-  createNvdCveAdapter({ apiKey: config.nvdApiKey }),
+  createNvdCveAdapter(config.nvdApiKey === undefined ? {} : { apiKey: config.nvdApiKey }),
 ];
 
 for (const adapter of adapters) assertAdapterContract(adapter);
