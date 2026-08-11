@@ -48,6 +48,8 @@ jobs:
         run: npm run test:runtime
       - name: NODE-2A production foundation acceptance
         run: npm run test:node2a
+      - name: NODE-2B CISA KEV acceptance
+        run: npm run test:node2b
       - name: Build
         run: npm run build
       - name: Build container
