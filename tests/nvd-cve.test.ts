@@ -160,13 +160,17 @@ describe("NVD CVE production adapter", () => {
         headers: { message: "invalid apiKey super-secret-key" },
       }),
     });
-    await expect(adapter.fetch({
-      work: await adapter.plan({ checkpoint: null }),
-      signal: new AbortController().signal,
-    })).rejects.toSatisfy((error: unknown) => {
+    try {
+      await adapter.fetch({
+        work: await adapter.plan({ checkpoint: null }),
+        signal: new AbortController().signal,
+      });
+      throw new Error("expected NVD authentication failure");
+    } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
-      return message.includes("[REDACTED]") && !message.includes("super-secret-key");
-    });
+      expect(message).toContain("[REDACTED]");
+      expect(message).not.toContain("super-secret-key");
+    }
   });
 
   it("fails closed on pagination index mismatch and an oversized response declaration", async () => {
