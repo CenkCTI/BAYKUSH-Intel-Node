@@ -2,10 +2,12 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import {
-  createNvdCveAdapter,
-  normalizeNvdCve,
   nvdCveResponseSchema,
 } from "../src/sources/nvd-cve.js";
+import {
+  createNvdCveAdapterV2,
+  normalizeNvdCveV2,
+} from "../src/sources/nvd-cve-normalization-v2.js";
 
 function fixture(name: string): unknown {
   const path = fileURLToPath(new URL(`./fixtures/nvd-cve/${name}`, import.meta.url));
@@ -28,7 +30,7 @@ function firstCve(name: string): unknown {
 
 describe("NVD CVE production adapter", () => {
   it("declares conservative source semantics, optional auth, and remains disabled", () => {
-    const adapter = createNvdCveAdapter();
+    const adapter = createNvdCveAdapterV2();
     expect(adapter.definition.sourceKey).toBe("NVD_CVE");
     expect(adapter.definition.sourceClass).toBe("VULNERABILITY_DATABASE");
     expect(adapter.definition.observationBasis).toBe("ENRICHED");
@@ -39,6 +41,8 @@ describe("NVD CVE production adapter", () => {
     expect(adapter.definition.requiresAuth).toBe(false);
     expect(adapter.definition.enabledByDefault).toBe(false);
     expect(adapter.definition.semanticBoundary.doesNotRepresent).toContain("exploit probability");
+    expect(adapter.definition.semanticContractVersion).toBe("nvd-cve-semantics-v2");
+    expect(adapter.normalizationVersion).toBe("nvd-cve-normalization-v2");
     expect(adapter.maxRecordsPerWorkUnit).toBe(2000);
     expect(adapter.maxRawRecordBytes).toBe(4 * 1024 * 1024);
   });
@@ -49,7 +53,7 @@ describe("NVD CVE production adapter", () => {
       calls.push({ url: new URL(String(input)), headers: new Headers(init?.headers) });
       return responseJson(fixture("page-1.json"));
     };
-    const adapter = createNvdCveAdapter({
+    const adapter = createNvdCveAdapterV2({
       apiKey: "fixture-secret",
       pageSize: 2,
       now: () => Date.parse("2026-08-12T00:00:00.000Z"),
@@ -95,7 +99,7 @@ describe("NVD CVE production adapter", () => {
       ],
     };
     const fetchImpl: typeof fetch = async () => responseJson(request++ === 0 ? pageOne : drifted);
-    const adapter = createNvdCveAdapter({
+    const adapter = createNvdCveAdapterV2({
       pageSize: 2,
       now: () => Date.parse("2026-08-12T00:00:00.000Z"),
       sleep: async () => {},
@@ -111,7 +115,7 @@ describe("NVD CVE production adapter", () => {
   });
 
   it("treats a zero-result HTTP 200 window as a valid observed zero", async () => {
-    const adapter = createNvdCveAdapter({
+    const adapter = createNvdCveAdapterV2({
       now: () => Date.parse("2026-08-12T04:00:00.000Z"),
       sleep: async () => {},
       fetchImpl: async () => responseJson(fixture("zero-results.json")),
@@ -122,18 +126,31 @@ describe("NVD CVE production adapter", () => {
     expect(result.nextCheckpoint).toMatchObject({ completedThrough: "2026-08-12T04:00:00.000Z", activeWindow: null });
   });
 
-  it("preserves rejected/unknown states, multiple CVSS assessments, and does not manufacture CISA corroboration", () => {
-    const rejected = normalizeNvdCve(firstCve("rejected-cve.json"));
+  it("preserves mixed NVD metric families without mislabeling the container as CVSS-only", () => {
+    const rejected = normalizeNvdCveV2(firstCve("rejected-cve.json"));
     expect(rejected.recordKind).toBe("VULNERABILITY_RECORD");
     expect(rejected.facts).toContainEqual({ predicate: "nvd.vuln_status", value: "Rejected" });
 
-    const multiple = normalizeNvdCve(firstCve("multiple-cvss.json"));
-    const metrics = multiple.facts.find((fact) => fact.predicate === "nvd.cvss_metrics")?.value as Record<string, unknown>;
+    const mixed = structuredClone(firstCve("multiple-cvss.json")) as Record<string, unknown>;
+    const sourceMetrics = mixed.metrics as Record<string, unknown>;
+    sourceMetrics.ssvcV203 = [{
+      source: "cisa@example.test",
+      ssvcData: {
+        role: "CISA Coordinator",
+        version: "2.0.3",
+        options: [{ exploitation: "none" }],
+      },
+    }];
+    const multiple = normalizeNvdCveV2(mixed);
+    const metrics = multiple.facts.find((fact) => fact.predicate === "nvd.metrics")?.value as Record<string, unknown>;
     expect(JSON.stringify(metrics)).toContain("nvd@nist.gov");
     expect(JSON.stringify(metrics)).toContain("vendor@example.test");
+    expect(JSON.stringify(metrics)).toContain("ssvcV203");
+    expect(JSON.stringify(metrics)).toContain("CISA Coordinator");
+    expect(multiple.facts.some((fact) => fact.predicate === "nvd.cvss_metrics")).toBe(false);
 
     const additive = firstCve("additive-fields.json") as Record<string, unknown>;
-    const draft = normalizeNvdCve(additive);
+    const draft = normalizeNvdCveV2(additive);
     expect(additive.futureNvdField).toEqual({ nested: "preserve" });
     expect(draft.facts).toContainEqual({ predicate: "nvd.vuln_status", value: "FutureStatus" });
     expect(draft.facts.some((fact) => fact.predicate.toLowerCase().includes("cisa"))).toBe(false);
@@ -142,7 +159,7 @@ describe("NVD CVE production adapter", () => {
 
   it("keeps complex CPE applicability in raw truth and only emits explicit count metadata", () => {
     const cve = firstCve("complex-cpe.json") as Record<string, unknown>;
-    const draft = normalizeNvdCve(cve);
+    const draft = normalizeNvdCveV2(cve);
     expect(cve.configurations).toBeDefined();
     expect(draft.entities).toHaveLength(1);
     expect(draft.entities[0]?.kind).toBe("CVE");
@@ -151,7 +168,7 @@ describe("NVD CVE production adapter", () => {
   });
 
   it("redacts an API key if a provider diagnostic header echoes it", async () => {
-    const adapter = createNvdCveAdapter({
+    const adapter = createNvdCveAdapterV2({
       apiKey: "super-secret-key",
       now: () => Date.parse("2026-08-12T00:00:00.000Z"),
       sleep: async () => {},
@@ -175,7 +192,7 @@ describe("NVD CVE production adapter", () => {
 
   it("fails closed on pagination index mismatch and an oversized response declaration", async () => {
     const mismatch = { ...nvdCveResponseSchema.parse(fixture("page-1.json")), startIndex: 1 };
-    const mismatchAdapter = createNvdCveAdapter({
+    const mismatchAdapter = createNvdCveAdapterV2({
       pageSize: 2,
       now: () => Date.parse("2026-08-12T00:00:00.000Z"),
       sleep: async () => {},
@@ -186,7 +203,7 @@ describe("NVD CVE production adapter", () => {
       signal: new AbortController().signal,
     })).rejects.toMatchObject({ code: "SCHEMA_ERROR" });
 
-    const oversizedAdapter = createNvdCveAdapter({
+    const oversizedAdapter = createNvdCveAdapterV2({
       now: () => Date.parse("2026-08-12T00:00:00.000Z"),
       sleep: async () => {},
       fetchImpl: async () => new Response("{}", {
