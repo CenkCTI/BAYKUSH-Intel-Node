@@ -6,7 +6,7 @@ import { normalizerTick } from "../src/runtime/normalization.js";
 import { enqueueDueRuns, setSourceEnabled } from "../src/runtime/repository.js";
 import { syncSourceDefinitions } from "../src/runtime/source-sync.js";
 import { workerTick } from "../src/runtime/worker.js";
-import { createNvdCveAdapter } from "../src/sources/nvd-cve.js";
+import { createNvdCveAdapterV2 } from "../src/sources/nvd-cve-normalization-v2.js";
 import { adapterRegistry } from "../src/sources/registry.js";
 
 const sourceKey = "NVD_CVE";
@@ -101,7 +101,7 @@ async function main(): Promise<void> {
     return jsonResponse(fixture("zero-results.json"));
   };
 
-  const adapter = createNvdCveAdapter({
+  const adapter = createNvdCveAdapterV2({
     apiKey: "node2c-fixture-secret",
     pageSize: 2,
     now: () => nowMs,
@@ -111,14 +111,21 @@ async function main(): Promise<void> {
   adapterRegistry.set(sourceKey, adapter);
   await syncSourceDefinitions([adapter]);
 
-  const source = await pool.query<{ id: string; enabled: boolean; auth_requirement: string }>(
-    "SELECT id, enabled, auth_requirement FROM source_definitions WHERE source_key = $1",
+  const source = await pool.query<{
+    id: string;
+    enabled: boolean;
+    auth_requirement: string;
+    semantic_contract_version: string;
+  }>(
+    "SELECT id, enabled, auth_requirement, semantic_contract_version FROM source_definitions WHERE source_key = $1",
     [sourceKey],
   );
   const sourceDefinitionId = source.rows[0]?.id;
   assert.ok(sourceDefinitionId, "NVD_CVE source definition must exist");
   assert.equal(source.rows[0]?.enabled, false, "NVD must remain disabled until an operator enables it");
   assert.equal(source.rows[0]?.auth_requirement, "OPTIONAL");
+  assert.equal(source.rows[0]?.semantic_contract_version, "nvd-cve-semantics-v2");
+  assert.equal(adapter.normalizationVersion, "nvd-cve-normalization-v2");
   await resetSource(sourceDefinitionId);
   await setSourceEnabled(sourceKey, true);
 
@@ -161,6 +168,23 @@ async function main(): Promise<void> {
     [sourceDefinitionId],
   );
   assert.equal(canonicalBootstrap.rows[0]?.count, 3);
+  const normalizationVersions = await pool.query<{ version: string; count: number }>(
+    `SELECT normalization_version AS version, count(*)::int AS count
+     FROM normalization_jobs WHERE source_definition_id = $1
+     GROUP BY normalization_version`,
+    [sourceDefinitionId],
+  );
+  assert.deepEqual(normalizationVersions.rows, [{ version: "nvd-cve-normalization-v2", count: 3 }]);
+  const metricPredicates = await pool.query<{ predicate: string; count: number }>(
+    `SELECT fact ->> 'predicate' AS predicate, count(*)::int AS count
+     FROM canonical_evidence_records c, jsonb_array_elements(c.facts) fact
+     WHERE c.source_definition_id = $1
+       AND fact ->> 'predicate' IN ('nvd.metrics', 'nvd.cvss_metrics')
+     GROUP BY fact ->> 'predicate'
+     ORDER BY fact ->> 'predicate'`,
+    [sourceDefinitionId],
+  );
+  assert.deepEqual(metricPredicates.rows, [{ predicate: "nvd.metrics", count: 1 }]);
   const rejected = await pool.query<{ value: string | null }>(
     `SELECT fact ->> 'value' AS value
      FROM canonical_evidence_records c, jsonb_array_elements(c.facts) fact
