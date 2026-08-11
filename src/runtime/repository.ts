@@ -3,6 +3,7 @@ import type { PoolClient } from "pg";
 import { pool, withTransaction } from "../db/pool.js";
 import type { ClassifiedFailure, SourceAdapter } from "../contracts/source.js";
 import { canonicalJsonStringify, type PreparedRawRecord } from "./raw-record.js";
+import { retryDelaySeconds } from "./retry.js";
 
 export interface ClaimedRun {
   id: string;
@@ -54,9 +55,15 @@ export async function enqueueDueRuns(sourceKeys: readonly string[], limit = 10):
       source_key: string;
       default_poll_interval_seconds: number;
       next_due_at: Date;
+      has_success: boolean;
     }>(
       `SELECT d.id AS source_definition_id, d.source_key,
-              d.default_poll_interval_seconds, s.next_due_at
+              d.default_poll_interval_seconds, s.next_due_at,
+              EXISTS (
+                SELECT 1 FROM collection_runs prior
+                WHERE prior.source_definition_id = d.id
+                  AND prior.state = 'SUCCEEDED'
+              ) AS has_success
        FROM source_schedule_state s
        JOIN source_definitions d ON d.id = s.source_definition_id
        WHERE d.enabled = true
@@ -77,14 +84,16 @@ export async function enqueueDueRuns(sourceKeys: readonly string[], limit = 10):
     let inserted = 0;
     for (const row of due.rows) {
       const scheduledFor = row.next_due_at.toISOString();
-      const idempotencyKey = `scheduled:${row.source_key}:${scheduledFor}`;
+      const trigger = row.has_success ? "SCHEDULED" : "BOOTSTRAP";
+      const purpose = row.has_success ? "LIVE_INCREMENTAL" : "INITIAL_BOOTSTRAP";
+      const idempotencyKey = `${trigger.toLowerCase()}:${row.source_key}:${scheduledFor}`;
       const run = await client.query(
         `INSERT INTO collection_runs(
            source_definition_id, trigger, purpose, state, idempotency_key, scheduled_for
-         ) VALUES ($1, 'SCHEDULED', 'LIVE_INCREMENTAL', 'QUEUED', $2, $3)
+         ) VALUES ($1, $2, $3, 'QUEUED', $4, $5)
          ON CONFLICT (idempotency_key) DO NOTHING
          RETURNING id`,
-        [row.source_definition_id, idempotencyKey, scheduledFor],
+        [row.source_definition_id, trigger, purpose, idempotencyKey, scheduledFor],
       );
       inserted += run.rowCount ?? 0;
       await client.query(
@@ -112,7 +121,7 @@ export async function claimNextRun(workerId: string, leaseSeconds: number): Prom
       `SELECT r.id, r.source_definition_id, d.source_key, r.trigger, r.purpose
        FROM collection_runs r
        JOIN source_definitions d ON d.id = r.source_definition_id
-       WHERE r.state = 'QUEUED'
+       WHERE (r.state = 'QUEUED' AND r.available_at <= now())
           OR (r.state = 'RUNNING' AND r.lease_expires_at < now())
        ORDER BY r.created_at
        FOR UPDATE OF r SKIP LOCKED
@@ -174,7 +183,8 @@ export async function claimNextWorkUnit(runId: string, workerId: string, leaseSe
       `SELECT id, run_id, ordinal, descriptor, attempt_count
        FROM collection_work_units
        WHERE run_id = $1
-         AND (state = 'QUEUED' OR (state = 'RUNNING' AND lease_expires_at < now()))
+         AND ((state = 'QUEUED' AND available_at <= now())
+           OR (state = 'RUNNING' AND lease_expires_at < now()))
        ORDER BY ordinal
        FOR UPDATE SKIP LOCKED
        LIMIT 1`,
@@ -239,13 +249,14 @@ export async function persistWorkSuccess(input: {
     await assertLease(client, input.run.id, input.work.id, input.workerId);
     let inserted = 0;
     for (const record of input.records) {
-      const result = await client.query(
+      const result = await client.query<{ id: string }>(
         `INSERT INTO raw_source_records(
            source_definition_id, collection_run_id, collection_work_unit_id,
            source_record_id, payload_sha256, payload, published_at, effective_at,
            upstream_updated_at, source_url, adapter_version, source_schema_version
          ) VALUES ($1,$2,$3,$4,$5,$6::jsonb,$7,$8,$9,$10,$11,$12)
-         ON CONFLICT (source_definition_id, source_record_id, payload_sha256) DO NOTHING`,
+         ON CONFLICT (source_definition_id, source_record_id, payload_sha256) DO NOTHING
+         RETURNING id`,
         [
           input.run.sourceDefinitionId, input.run.id, input.work.id,
           record.sourceRecordId, record.payloadSha256, record.payloadJson,
@@ -253,7 +264,16 @@ export async function persistWorkSuccess(input: {
           record.sourceUrl, input.adapter.definition.adapterVersion, record.sourceSchemaVersion,
         ],
       );
-      inserted += result.rowCount ?? 0;
+      const rawRecordId = result.rows[0]?.id;
+      if (!rawRecordId) continue;
+      inserted += 1;
+      await client.query(
+        `INSERT INTO normalization_jobs(
+           raw_record_id, source_definition_id, normalization_version, state
+         ) VALUES ($1,$2,$3,'QUEUED')
+         ON CONFLICT (raw_record_id, normalization_version) DO NOTHING`,
+        [rawRecordId, input.run.sourceDefinitionId, input.adapter.normalizationVersion],
+      );
     }
 
     const checkpointJson = canonicalJsonStringify(input.nextCheckpoint);
@@ -296,6 +316,7 @@ export async function persistWorkSuccess(input: {
     await client.query(
       `UPDATE collection_runs
        SET state = $2,
+           available_at = now(),
            finished_at = CASE WHEN $2 = 'SUCCEEDED' THEN now() ELSE NULL END,
            lease_owner = NULL, lease_expires_at = NULL,
            work_units_succeeded = work_units_succeeded + 1,
@@ -324,26 +345,36 @@ export async function persistWorkFailure(input: {
   workerId: string;
   failure: ClassifiedFailure;
   maxAttempts: number;
+  retryBaseSeconds?: number;
+  retryMaxSeconds?: number;
 }): Promise<void> {
   await withTransaction(async (client) => {
     await assertLease(client, input.run.id, input.work.id, input.workerId);
     const retry = input.failure.retryable && input.work.attemptCount < input.maxAttempts;
+    const delaySeconds = retry ? retryDelaySeconds({
+      attemptCount: input.work.attemptCount,
+      baseSeconds: input.retryBaseSeconds ?? 5,
+      maxSeconds: input.retryMaxSeconds ?? 300,
+      ...(input.failure.retryAfterSeconds === undefined ? {} : { providerRetryAfterSeconds: input.failure.retryAfterSeconds }),
+    }) : 0;
     await client.query(
       `UPDATE collection_work_units
        SET state = $2, lease_owner = NULL, lease_expires_at = NULL,
+           available_at = CASE WHEN $2 = 'QUEUED' THEN now() + ($5::int * interval '1 second') ELSE available_at END,
            finished_at = CASE WHEN $2 = 'FAILED' THEN now() ELSE NULL END,
            failure_code = $3, failure_message = $4, updated_at = now()
        WHERE id = $1`,
-      [input.work.id, retry ? "QUEUED" : "FAILED", input.failure.code, input.failure.message],
+      [input.work.id, retry ? "QUEUED" : "FAILED", input.failure.code, input.failure.message, delaySeconds],
     );
     await client.query(
       `UPDATE collection_runs
        SET state = $2, lease_owner = NULL, lease_expires_at = NULL,
+           available_at = CASE WHEN $2 = 'QUEUED' THEN now() + ($5::int * interval '1 second') ELSE available_at END,
            finished_at = CASE WHEN $2 = 'FAILED' THEN now() ELSE NULL END,
            attempt_count = attempt_count + 1,
            failure_code = $3, failure_message = $4, updated_at = now()
        WHERE id = $1`,
-      [input.run.id, retry ? "QUEUED" : "FAILED", input.failure.code, input.failure.message],
+      [input.run.id, retry ? "QUEUED" : "FAILED", input.failure.code, input.failure.message, delaySeconds],
     );
     await client.query(
       `UPDATE source_health
@@ -373,7 +404,7 @@ export async function failClaimedRun(run: ClaimedRun, workerId: string, failure:
   );
 }
 
-export async function recordHeartbeat(component: "API" | "SCHEDULER" | "WORKER", instanceId: string, metadata: Record<string, unknown> = {}): Promise<void> {
+export async function recordHeartbeat(component: "API" | "SCHEDULER" | "WORKER" | "NORMALIZER", instanceId: string, metadata: Record<string, unknown> = {}): Promise<void> {
   await pool.query(
     `INSERT INTO runtime_heartbeats(component, instance_id, heartbeat_at, metadata)
      VALUES ($1,$2,now(),$3::jsonb)
