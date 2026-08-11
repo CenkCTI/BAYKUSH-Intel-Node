@@ -86,7 +86,7 @@ try {
   await pool.query(
     `INSERT INTO canonical_evidence_records(
        raw_record_id, source_definition_id, source_record_id, upstream_origin_key,
-       canonical_key, record_kind, received_at, entities, facts, references,
+       canonical_key, record_kind, received_at, entities, facts, reference_urls,
        semantic_boundary, adapter_version, normalization_version,
        semantic_contract_version, normalized_sha256
      ) VALUES ($1,$2,$3,'BAYKUSH_TEST','test:migration','UNKNOWN',now(),'[]'::jsonb,'[]'::jsonb,'[]'::jsonb,
