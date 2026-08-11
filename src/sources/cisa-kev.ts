@@ -449,14 +449,6 @@ export function createCisaKevAdapter(options: CisaKevAdapterOptions = {}): Sourc
       return [normalizeCisaKevEntry(record)];
     },
     classifyFailure(error) {
-      if (error instanceof CollectionFailure) {
-        return {
-          code: error.code,
-          retryable: error.retryable,
-          message: error.message,
-          ...(error.retryAfterSeconds === undefined ? {} : { retryAfterSeconds: error.retryAfterSeconds }),
-        };
-      }
       if (error instanceof z.ZodError) {
         return { code: "SCHEMA_ERROR", retryable: false, message: "CISA KEV data failed validation" };
       }
