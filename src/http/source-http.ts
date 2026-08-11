@@ -8,6 +8,8 @@ export interface SourceHttpRequest {
   timeoutMs: number;
   acceptedStatuses?: readonly number[];
   headers?: Readonly<Record<string, string>>;
+  /** Exact secret values that must be redacted if a provider echoes them in diagnostic headers. */
+  redactValues?: readonly string[];
   signal?: AbortSignal;
   fetchImpl?: typeof fetch;
 }
@@ -83,22 +85,37 @@ async function readBoundedBody(response: Response, maxBytes: number): Promise<Bu
   return Buffer.concat(chunks, total);
 }
 
-function statusFailure(response: Response): CollectionFailure | null {
+function providerDiagnostic(response: Response, redactValues: readonly string[] = []): string {
+  let message = (response.headers.get("message") ?? "")
+    .replace(/[\r\n\t]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 512);
+  for (const secret of redactValues) {
+    if (!secret) continue;
+    message = message.split(secret).join("[REDACTED]");
+  }
+  return message;
+}
+
+function statusFailure(response: Response, redactValues: readonly string[] = []): CollectionFailure {
+  const diagnostic = providerDiagnostic(response, redactValues);
+  const suffix = diagnostic ? `: ${diagnostic}` : "";
   if (response.status === 401 || response.status === 403) {
-    return new CollectionFailure("AUTHENTICATION_ERROR", "Source authentication was rejected", false);
+    return new CollectionFailure("AUTHENTICATION_ERROR", `Source authentication was rejected${suffix}`, false);
   }
   if (response.status === 429) {
     const retryAfterSeconds = parseRetryAfterSeconds(response.headers.get("retry-after"));
-    return new CollectionFailure("RATE_LIMITED", "Source rate limit was reached", true,
+    return new CollectionFailure("RATE_LIMITED", `Source rate limit was reached${suffix}`, true,
       retryAfterSeconds === undefined ? {} : { retryAfterSeconds });
   }
   if (response.status >= 500) {
-    return new CollectionFailure("PROVIDER_ERROR", `Source returned HTTP ${response.status}`, true);
+    return new CollectionFailure("PROVIDER_ERROR", `Source returned HTTP ${response.status}${suffix}`, true);
   }
   if (response.status >= 300 && response.status < 400) {
-    return new CollectionFailure("PROVIDER_ERROR", "Source redirects are not followed automatically", false);
+    return new CollectionFailure("PROVIDER_ERROR", `Source redirects are not followed automatically${suffix}`, false);
   }
-  return new CollectionFailure("PROVIDER_ERROR", `Source returned HTTP ${response.status}`, false);
+  return new CollectionFailure("PROVIDER_ERROR", `Source returned HTTP ${response.status}${suffix}`, false);
 }
 
 export async function fetchBoundedSource(input: SourceHttpRequest): Promise<SourceHttpResponse> {
@@ -128,7 +145,7 @@ export async function fetchBoundedSource(input: SourceHttpRequest): Promise<Sour
       throw new CollectionFailure("TRANSPORT_ERROR", "Source transport failed", true, { cause: error });
     }
 
-    if (!accepted.has(response.status)) throw statusFailure(response);
+    if (!accepted.has(response.status)) throw statusFailure(response, input.redactValues);
     const bytes = response.status === 304 ? Buffer.alloc(0) : await readBoundedBody(response, input.maxBytes);
     return {
       status: response.status,
