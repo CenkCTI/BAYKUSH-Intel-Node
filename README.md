@@ -67,6 +67,8 @@ The first deployment target is an Oracle VM, but the runtime is designed to rema
 - [NODE-0 Acceptance](docs/ACCEPTANCE.md)
 - [NODE-1 Runtime Backbone](docs/NODE_1_RUNTIME.md)
 - [NODE-2A Production Source Foundation](docs/NODE_2A_PRODUCTION_FOUNDATION.md)
+- [NODE-2B CISA KEV](docs/NODE_2B_CISA_KEV.md)
+- [CISA KEV Source Admission](docs/SOURCE_ADMISSION_CISA_KEV.md)
 
 ## Development sequence
 
@@ -106,8 +108,8 @@ Additional sources are admitted only after the measurement and CİTEM Global Vie
 
 ## Current phase
 
-**NODE-2A — Production Source Foundation**
+**NODE-2B — CISA KEV Production Adapter**
 
-NODE-2A upgrades the source-agnostic runtime for real providers: bootstrap/live run semantics, durable retry backoff, bounded fixed-endpoint HTTP transport, registry synchronization, operator-controlled source enablement, raw-to-canonical normalization jobs, immutable canonical evidence, a dedicated normalizer process, and PostgreSQL-backed acceptance.
+NODE-2B admits the first real production intelligence source. CISA KEV is collected as one bounded, fail-closed snapshot; unchanged entries remain idempotent, real revisions remain immutable, catalog membership is preserved separately in snapshot manifests, and canonical output is explicitly `KNOWN_EXPLOITED_VULNERABILITY` rather than attack telemetry.
 
-The five production source adapters are intentionally not admitted in NODE-2A. They enter one by one in NODE-2B through NODE-2F, followed by shadow parity and live acceptance before NODE-2 is closed.
+CISA KEV remains disabled by default and requires explicit operator enablement. NVD, FIRST EPSS, ThreatFox, and MalwareBazaar remain out of scope until their respective NODE-2 subphases.
