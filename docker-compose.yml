@@ -20,6 +20,9 @@ services:
     environment: &node-env
       DATABASE_URL: postgres://baykush:baykush@postgres:5432/baykush
       ENABLE_TEST_SYNTHETIC: ${ENABLE_TEST_SYNTHETIC:-false}
+      WORKER_RETRY_BASE_SECONDS: ${WORKER_RETRY_BASE_SECONDS:-5}
+      WORKER_RETRY_MAX_SECONDS: ${WORKER_RETRY_MAX_SECONDS:-300}
+      SOURCE_HTTP_TIMEOUT_MS: ${SOURCE_HTTP_TIMEOUT_MS:-30000}
     depends_on:
       postgres:
         condition: service_healthy
@@ -61,6 +64,17 @@ services:
     environment:
       <<: *node-env
       NODE_INSTANCE_ID: worker-1
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    restart: unless-stopped
+
+  normalizer:
+    build: .
+    command: ["node", "dist/normalizer/main.js"]
+    environment:
+      <<: *node-env
+      NODE_INSTANCE_ID: normalizer-1
     depends_on:
       migrate:
         condition: service_completed_successfully
