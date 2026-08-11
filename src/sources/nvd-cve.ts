@@ -22,7 +22,28 @@ export const NVD_CVE_API_URL = new URL("https://services.nvd.nist.gov/rest/json/
 export const NVD_CVE_DETAIL_BASE_URL = "https://nvd.nist.gov/vuln/detail/";
 
 const cveIdSchema = z.string().regex(/^CVE-[0-9]{4}-[0-9]{4,19}$/);
-const sourceDateTimeSchema = z.string().datetime({ offset: true });
+const internalDateTimeSchema = z.string().datetime({ offset: true });
+
+function sourceTimestampMilliseconds(value: string): number {
+  const withZone = /(Z|[+-][0-9]{2}:[0-9]{2})$/i.test(value) ? value : `${value}Z`;
+  return Date.parse(withZone);
+}
+
+function normalizeNvdSourceTimestamp(value: string, label: string): string {
+  const milliseconds = sourceTimestampMilliseconds(value);
+  if (!Number.isFinite(milliseconds)) {
+    throw new CollectionFailure("SCHEMA_ERROR", `NVD ${label} is not a valid datetime`, false);
+  }
+  return new Date(milliseconds).toISOString();
+}
+
+// NVD API examples and schemas use UTC timestamps that may omit an explicit Z/offset.
+// Preserve the source string in raw JSON, but normalize timestamps before PostgreSQL persistence.
+const nvdSourceDateTimeSchema = z.string().min(1).max(64).refine(
+  (value) => Number.isFinite(sourceTimestampMilliseconds(value)),
+  "invalid NVD source datetime",
+);
+
 const descriptionSchema = z.object({
   lang: z.string().min(1).max(32),
   value: z.string().max(256_000),
@@ -31,8 +52,8 @@ const descriptionSchema = z.object({
 export const nvdCveSchema = z.object({
   id: cveIdSchema,
   sourceIdentifier: z.string().min(1).max(2_048),
-  published: sourceDateTimeSchema,
-  lastModified: sourceDateTimeSchema,
+  published: nvdSourceDateTimeSchema,
+  lastModified: nvdSourceDateTimeSchema,
   vulnStatus: z.string().min(1).max(128),
   descriptions: z.array(descriptionSchema).max(512).optional(),
   metrics: z.unknown().optional(),
@@ -51,14 +72,14 @@ export const nvdCveResponseSchema = z.object({
   totalResults: z.number().int().nonnegative(),
   format: z.string().max(128).optional(),
   version: z.string().max(128).optional(),
-  timestamp: sourceDateTimeSchema.optional(),
+  timestamp: nvdSourceDateTimeSchema.optional(),
   vulnerabilities: z.array(vulnerabilityWrapperSchema).max(NVD_DEFAULT_PAGE_SIZE),
 }).passthrough();
 
 const activeWindowSchema = z.object({
-  windowStart: sourceDateTimeSchema,
-  windowEnd: sourceDateTimeSchema,
-  targetEnd: sourceDateTimeSchema,
+  windowStart: internalDateTimeSchema,
+  windowEnd: internalDateTimeSchema,
+  targetEnd: internalDateTimeSchema,
   startIndex: z.number().int().nonnegative(),
   expectedTotalResults: z.number().int().nonnegative().nullable(),
   restartCount: z.number().int().nonnegative().max(NVD_MAX_WINDOW_RESTARTS),
@@ -67,14 +88,14 @@ type ActiveWindow = z.infer<typeof activeWindowSchema>;
 
 const checkpointSchema = z.object({
   version: z.literal(1),
-  completedThrough: sourceDateTimeSchema.nullable(),
+  completedThrough: internalDateTimeSchema.nullable(),
   activeWindow: activeWindowSchema.nullable(),
 }).strict();
 type NvdCheckpoint = z.infer<typeof checkpointSchema>;
 
 const workDescriptorSchema = activeWindowSchema.extend({
-  completedThroughBeforeWindow: sourceDateTimeSchema.nullable(),
-  notBeforeRequestAt: sourceDateTimeSchema.nullable(),
+  completedThroughBeforeWindow: internalDateTimeSchema.nullable(),
+  notBeforeRequestAt: internalDateTimeSchema.nullable(),
 }).strict();
 type NvdWorkDescriptor = z.infer<typeof workDescriptorSchema>;
 
@@ -190,15 +211,15 @@ async function defaultSleep(milliseconds: number, signal: AbortSignal): Promise<
   if (milliseconds <= 0) return;
   if (signal.aborted) throw new DOMException("NVD pacing wait aborted", "AbortError");
   await new Promise<void>((resolve, reject) => {
-    const timer = setTimeout(() => {
-      signal.removeEventListener("abort", onAbort);
-      resolve();
-    }, milliseconds);
     const onAbort = () => {
       clearTimeout(timer);
       signal.removeEventListener("abort", onAbort);
       reject(new DOMException("NVD pacing wait aborted", "AbortError"));
     };
+    const timer = setTimeout(() => {
+      signal.removeEventListener("abort", onAbort);
+      resolve();
+    }, milliseconds);
     signal.addEventListener("abort", onAbort, { once: true });
   });
 }
@@ -494,9 +515,9 @@ export function createNvdCveAdapter(options: NvdAdapterOptions = {}): SourceAdap
     extractTimes(record) {
       const parsed = fetchedRecordSchema.parse(record).payload;
       return {
-        publishedAt: parsed.published,
+        publishedAt: normalizeNvdSourceTimestamp(parsed.published, "published"),
         effectiveAt: null,
-        upstreamUpdatedAt: parsed.lastModified,
+        upstreamUpdatedAt: normalizeNvdSourceTimestamp(parsed.lastModified, "lastModified"),
       };
     },
     sourceReference(record) {
