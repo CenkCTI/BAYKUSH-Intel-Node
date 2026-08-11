@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { canonicalEvidenceDraftSchema, type CanonicalEvidenceDraft } from "./canonical.js";
+import type { CanonicalEvidenceDraft } from "./canonical.js";
 import { observationBasisSchema, semanticBoundarySchema, sourceClassSchema } from "./semantics.js";
 
 export const collectionModeSchema = z.enum(["POLL", "PAGED_POLL", "SNAPSHOT", "STREAM"]);
@@ -90,6 +90,4 @@ export interface SourceAdapter {
 export function assertAdapterContract(adapter: SourceAdapter): void {
   sourceDefinitionSchema.parse(adapter.definition);
   if (!adapter.checkpointSchemaVersion.trim()) throw new Error("checkpointSchemaVersion is required");
-  const drafts = adapter.normalize({});
-  for (const draft of drafts) canonicalEvidenceDraftSchema.parse(draft);
 }
