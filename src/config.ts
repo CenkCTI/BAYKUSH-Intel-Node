@@ -25,6 +25,7 @@ const envSchema = z.object({
   HEARTBEAT_INTERVAL_MS: z.coerce.number().int().min(1_000).max(60_000).default(10_000),
   SOURCE_HTTP_TIMEOUT_MS: z.coerce.number().int().min(1_000).max(120_000).default(30_000),
   MAX_RECORDS_PER_WORK_UNIT: z.coerce.number().int().min(1).max(10_000).default(100),
+  GLOBAL_MAX_RECORDS_PER_WORK_UNIT: z.coerce.number().int().min(1).max(10_000).default(10_000),
   MAX_RAW_RECORD_BYTES: z.coerce.number().int().min(1_024).max(10 * 1024 * 1024).default(262_144),
   ENABLE_TEST_SYNTHETIC: booleanFromEnv.default(false),
   SYNTHETIC_RECORDS_PER_RUN: z.coerce.number().int().min(1).max(10_000).default(25),
@@ -33,6 +34,9 @@ const envSchema = z.object({
 
 const parsed = envSchema.parse(process.env);
 
+if (parsed.MAX_RECORDS_PER_WORK_UNIT > parsed.GLOBAL_MAX_RECORDS_PER_WORK_UNIT) {
+  throw new Error("MAX_RECORDS_PER_WORK_UNIT cannot exceed GLOBAL_MAX_RECORDS_PER_WORK_UNIT");
+}
 if (parsed.SYNTHETIC_PAGE_SIZE > parsed.MAX_RECORDS_PER_WORK_UNIT) {
   throw new Error("SYNTHETIC_PAGE_SIZE cannot exceed MAX_RECORDS_PER_WORK_UNIT");
 }
@@ -57,6 +61,7 @@ export const config = Object.freeze({
   heartbeatIntervalMs: parsed.HEARTBEAT_INTERVAL_MS,
   sourceHttpTimeoutMs: parsed.SOURCE_HTTP_TIMEOUT_MS,
   maxRecordsPerWorkUnit: parsed.MAX_RECORDS_PER_WORK_UNIT,
+  globalMaxRecordsPerWorkUnit: parsed.GLOBAL_MAX_RECORDS_PER_WORK_UNIT,
   maxRawRecordBytes: parsed.MAX_RAW_RECORD_BYTES,
   enableTestSynthetic: parsed.ENABLE_TEST_SYNTHETIC,
   syntheticRecordsPerRun: parsed.SYNTHETIC_RECORDS_PER_RUN,
