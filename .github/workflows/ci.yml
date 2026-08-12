@@ -58,6 +58,8 @@ jobs:
         run: npm run test:node2e
       - name: NODE-2F MalwareBazaar acceptance
         run: npm run test:node2f
+      - name: NODE-2G five-source aggregate acceptance
+        run: npm run test:node2g
       - name: Build
         run: npm run build
       - name: Build container
