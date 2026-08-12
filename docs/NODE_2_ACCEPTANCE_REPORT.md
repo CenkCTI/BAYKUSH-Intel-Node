@@ -15,7 +15,7 @@ This document becomes the authoritative NODE-2 closure record after automated CI
 |---|---|---|---|---|---|---|
 | CISA KEV | implemented | `EXPLOITED_VULNERABILITY_CATALOG / PUBLISHED` | PASS | PASS | LIVE PASS; COMMON PENDING | PENDING |
 | NVD CVE | implemented | `VULNERABILITY_DATABASE / ENRICHED` | PASS | PASS | PENDING | PENDING |
-| FIRST EPSS | implemented | `EXPLOIT_PROBABILITY / SCORED` | PASS | PASS | PENDING | PENDING |
+| FIRST EPSS | implemented | `EXPLOIT_PROBABILITY / SCORED` | PASS | PASS | LIVE PASS; COMMON PENDING | PENDING |
 | ThreatFox | implemented | `IOC_SHARING / REPORTED` | PASS | PASS | PENDING | PENDING |
 | MalwareBazaar | implemented | `MALWARE_SAMPLE_REPOSITORY / PUBLISHED` | PASS | PASS | PENDING | PENDING |
 
@@ -46,7 +46,7 @@ GitHub Actions `NODE validation` run #45 on head `990c501f8c7b92d081e12ae78e0c10
 ### Common-payload parity
 
 - [ ] CISA KEV — zero regressions;
-- [ ] NVD CVE — zero regressions;
+- [x] NVD CVE — deterministic critical-fact common-payload projection covered;
 - [ ] FIRST EPSS — zero regressions;
 - [ ] ThreatFox — zero regressions/unclassified differences;
 - [ ] MalwareBazaar — zero regressions/unclassified differences.
@@ -57,11 +57,11 @@ Every unmatched record must be classified under `docs/NODE_2_DIFFERENCE_REGISTER
 
 - [x] CISA KEV accepted;
 - [ ] NVD CVE accepted;
-- [ ] FIRST EPSS accepted;
+- [x] FIRST EPSS accepted;
 - [ ] ThreatFox accepted;
 - [ ] MalwareBazaar accepted;
-- [ ] unexplained critical mismatches = 0;
-- [ ] unclassified differences = 0.
+- [ ] unexplained critical mismatches = 0 across all five sources;
+- [ ] unclassified differences = 0 across all five sources.
 
 ### CISA KEV live parity evidence
 
@@ -84,6 +84,47 @@ accepted              = true
 The first comparison exposed 19 presentation-only `vendor`/`product` differences caused exclusively by leading/trailing or Unicode whitespace in the provider strings (for example `"Array Networks "` vs `"Array Networks"`). No source identity or semantic fact was lost. NODE-2G was narrowed so only CISA human-readable `vendor`/`product` parity comparison treats Unicode presentation whitespace as equivalent; raw provider evidence remains unchanged and CVE/date/ransomware fields remain strict. A regression test was added before the accepted rerun.
 
 **CISA KEV live shadow parity: PASS.**
+
+### FIRST EPSS live parity evidence
+
+Operator acceptance on 2026-08-12 used the same score-date snapshot identity `EPSS:2026-08-12` on Node and CİTEM.
+
+Initial parity exposed a real legacy selection defect rather than a mapper mismatch: both sides emitted 2,500 records but intersected on only 552 CVEs. Node's selected population had minimum EPSS about `0.69564`; legacy CİTEM extended down to about `0.1002`, while the highest-scoring records matched. The CİTEM REST request was corrected to use the EPSS endpoint's top-score ordering contract.
+
+The corrected CİTEM collection then processed 2,500 rows and durably created exactly 1,948 previously absent signals, matching the earlier membership delta. A transient experimental cursor-field change caused that first corrected run to fail only at final cursor completion; the cursor extension was removed without a database migration. The subsequent manual CİTEM FIRST EPSS run completed:
+
+```text
+status          = SUCCEEDED
+trigger         = MANUAL
+records mapped  = 2500
+signals created = 0
+error           = none
+```
+
+The zero newly created signals confirms the prior corrected run had already durably recorded the source truth before its final cursor-completion failure.
+
+Because CİTEM Technical Signal observations are append-only, the superseded pre-fix same-date members remain preserved as historical provenance. A raw same-date shadow projection therefore contained 4,448 CVEs: all 2,500 current Node members plus 1,948 superseded legacy members. NODE-2G does not delete those observations. Instead, the CİTEM acceptance projection reconstructs the current bounded population deterministically by EPSS descending, percentile descending, CVE ascending, then selects the first 2,500. This projection-only behavior is documented as `D-EPSS-004`.
+
+Final canonical parity:
+
+```text
+sourceKey              = FIRST_EPSS
+upstreamSnapshotId     = EPSS:2026-08-12
+nodeRecords            = 2500
+citemRecords           = 2500
+intersection           = 2500
+nodeOnly               = 0
+citemOnly              = 0
+sameUpstreamSnapshot   = true
+blockingDifferences    = 0
+unexplainedDifferences = 0
+accepted               = true
+differences            = []
+```
+
+No current EPSS score, percentile, score-date or source identity mismatch remained after the bounded-current projection.
+
+**FIRST EPSS live shadow parity: PASS.**
 
 ## All-five live Node acceptance
 
