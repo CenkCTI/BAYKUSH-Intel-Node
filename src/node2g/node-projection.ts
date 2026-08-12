@@ -17,6 +17,11 @@ function text(value: unknown): string | null {
   return typeof value === "string" ? value : null;
 }
 
+function displayText(value: unknown): string | null {
+  const raw = text(value);
+  return raw === null ? null : raw.replace(/\p{White_Space}+/gu, " ").trim();
+}
+
 function numberValue(value: unknown): number | null {
   return typeof value === "number" && Number.isFinite(value) ? value : null;
 }
@@ -43,8 +48,11 @@ function nodeFacts(sourceKey: ProductionSourceKey, payload: unknown): { subject:
           cve,
           dateAdded: text(root.dateAdded),
           dueDate: text(root.dueDate),
-          vendor: text(root.vendorProject),
-          product: text(root.product),
+          // Legacy CİTEM trims/collapses presentation whitespace in these human-readable
+          // fields. The parity projection compares their semantic text while raw Node
+          // evidence remains byte-preserved in raw_source_records.
+          vendor: displayText(root.vendorProject),
+          product: displayText(root.product),
           ransomwareUse: text(root.knownRansomwareCampaignUse),
         },
       };
