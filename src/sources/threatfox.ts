@@ -479,8 +479,10 @@ export function createThreatFoxAdapter(options: ThreatFoxAdapterOptions = {}): S
         seenIds.add(parsed.data.id);
         const firstSeen = parseThreatFoxTimestamp(parsed.data.first_seen);
         if (parsed.data.last_seen !== null) parseThreatFoxTimestamp(parsed.data.last_seen);
-        minFirstSeen = minFirstSeen === null || firstSeen < minFirstSeen ? firstSeen : minFirstSeen;
-        maxFirstSeen = maxFirstSeen === null || firstSeen > maxFirstSeen ? firstSeen : maxFirstSeen;
+        if (minFirstSeen === null) minFirstSeen = firstSeen;
+        else if (firstSeen.localeCompare(minFirstSeen) < 0) minFirstSeen = firstSeen;
+        if (maxFirstSeen === null) maxFirstSeen = firstSeen;
+        else if (firstSeen.localeCompare(maxFirstSeen) > 0) maxFirstSeen = firstSeen;
         records.push(parsed.data);
       }
 
