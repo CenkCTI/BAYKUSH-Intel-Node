@@ -57,6 +57,14 @@ NVD fields that mirror CISA material remain NVD source material and are not prom
 
 Node keeps immutable source revisions and immutable normalization-version history. A semantic mapping correction creates a new normalization version rather than rewriting earlier canonical evidence.
 
+### D-NVD-005 — Legacy single-window catch-up ceiling
+
+**Classification:** `INTENTIONAL_DIFFERENCE`
+
+Legacy CİTEM resumes NVD from its last successful last-modified watermark by opening one cursor-to-now window with a five-minute overlap, but its collector hard-fails when the provider reports more than 2,000 records for that window. Because the failed run does not advance the watermark, repeatedly invoking the same manual sync repeats the same oversized window and cannot close the gap.
+
+Node deliberately replaces this behavior with durable segmented historical recovery: recovery is split into bounded segments while preserving the overlap and checkpoint, so a large gap can advance safely without silently dropping provider records. A Node/CİTEM live membership comparison is therefore invalid while their retained NVD windows do not overlap. Critical-fact parity must still be demonstrated on the same bounded NVD window/common payload; this difference is not permission to ignore fact mismatches.
+
 ## FIRST EPSS
 
 ### D-EPSS-001 — Retrieval surface
