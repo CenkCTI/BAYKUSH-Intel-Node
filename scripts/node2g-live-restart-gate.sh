@@ -42,12 +42,12 @@ assert_fresh_runtime_heartbeats() {
   stale=$(sudo docker compose exec -T postgres \
     psql -U baykush -d baykush -At -c "
       WITH expected(component) AS (
-        VALUES ('SCHEDULER'::runtime_component), ('WORKER'::runtime_component), ('NORMALIZER'::runtime_component)
+        VALUES ('SCHEDULER'), ('WORKER'), ('NORMALIZER')
       ), latest AS (
-        SELECT component, max(heartbeat_at) AS heartbeat_at
+        SELECT component::text AS component, max(heartbeat_at) AS heartbeat_at
           FROM runtime_heartbeats
-         WHERE component IN ('SCHEDULER','WORKER','NORMALIZER')
-         GROUP BY component
+         WHERE component::text IN ('SCHEDULER','WORKER','NORMALIZER')
+         GROUP BY component::text
       )
       SELECT count(*)
         FROM expected e
@@ -108,7 +108,7 @@ sudo docker compose exec -T postgres \
     SELECT component, instance_id, heartbeat_at,
            round(extract(epoch from (now() - heartbeat_at)))::int AS age_seconds
       FROM runtime_heartbeats
-     WHERE component IN ('SCHEDULER','WORKER','NORMALIZER')
+     WHERE component::text IN ('SCHEDULER','WORKER','NORMALIZER')
      ORDER BY component, instance_id;
   "
 assert_fresh_runtime_heartbeats
