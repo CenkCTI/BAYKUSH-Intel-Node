@@ -16,12 +16,12 @@ This document becomes the authoritative NODE-2 closure record after automated CI
 | CISA KEV | implemented | `EXPLOITED_VULNERABILITY_CATALOG / PUBLISHED` | PASS | PASS | LIVE PASS; COMMON PENDING | PENDING |
 | NVD CVE | implemented | `VULNERABILITY_DATABASE / ENRICHED` | PASS | PASS | PENDING | PENDING |
 | FIRST EPSS | implemented | `EXPLOIT_PROBABILITY / SCORED` | PASS | PASS | LIVE PASS; COMMON PENDING | PENDING |
-| ThreatFox | implemented | `IOC_SHARING / REPORTED` | PASS | PASS | PENDING | PENDING |
-| MalwareBazaar | implemented | `MALWARE_SAMPLE_REPOSITORY / PUBLISHED` | PASS | PASS | PENDING | PENDING |
+| ThreatFox | implemented | `IOC_SHARING / REPORTED` | PASS | PASS | LIVE PASS; COMMON PASS | PASS |
+| MalwareBazaar | implemented | `MALWARE_SAMPLE_REPOSITORY / PUBLISHED` | PASS | PASS | AUTOMATED PREP IMPLEMENTED; LIVE PENDING | PENDING |
 
 ## Automated NODE-2G gates
 
-GitHub Actions `NODE validation` run #45 on head `990c501f8c7b92d081e12ae78e0c108c0d5fd400` completed successfully on 2026-08-12. `test:node2g` ran after NODE-2A through NODE-2F against the same PostgreSQL service.
+The aggregate NODE-2G suite runs after NODE-2A through NODE-2F against the same PostgreSQL service.
 
 - [x] all five production adapters registered;
 - [x] all source definitions synchronized;
@@ -39,7 +39,8 @@ GitHub Actions `NODE validation` run #45 on head `990c501f8c7b92d081e12ae78e0c10
 - [x] CISA/EPSS/ThreatFox/MalwareBazaar provenance manifests normalize to zero canonical intelligence records;
 - [x] NVD-mirrored CISA fields do not become independent CISA corroboration;
 - [x] source normalization manufactures no attack-count, victim-count, business-risk, remediation-priority, attacker-origin, target-country or global-threat-level facts;
-- [x] lint/typecheck/unit tests/migrations/NODE-1/NODE-2A–2G/build/container build all pass.
+- [x] lint/typecheck/unit tests/migrations/NODE-1/NODE-2A–2G/build/container build pass on the accepted pre-MalwareBazaar-prep head;
+- [ ] latest MalwareBazaar parity-hardening head and companion CİTEM PR validation both green.
 
 ## Shadow parity gates
 
@@ -48,8 +49,8 @@ GitHub Actions `NODE validation` run #45 on head `990c501f8c7b92d081e12ae78e0c10
 - [ ] CISA KEV — zero regressions;
 - [x] NVD CVE — deterministic critical-fact common-payload projection covered;
 - [ ] FIRST EPSS — zero regressions;
-- [ ] ThreatFox — zero regressions/unclassified differences;
-- [ ] MalwareBazaar — zero regressions/unclassified differences.
+- [x] ThreatFox — deterministic shared-provider critical-fact projection covered on both sides;
+- [ ] MalwareBazaar — implementation added on both sides; awaiting final companion CI confirmation.
 
 ### Live shadow parity
 
@@ -58,7 +59,7 @@ Every unmatched record must be classified under `docs/NODE_2_DIFFERENCE_REGISTER
 - [x] CISA KEV accepted;
 - [ ] NVD CVE accepted;
 - [x] FIRST EPSS accepted;
-- [ ] ThreatFox accepted;
+- [x] ThreatFox accepted;
 - [ ] MalwareBazaar accepted;
 - [ ] unexplained critical mismatches = 0 across all five sources;
 - [ ] unclassified differences = 0 across all five sources.
@@ -81,7 +82,7 @@ unexplainedDifferences= 0
 accepted              = true
 ```
 
-The first comparison exposed 19 presentation-only `vendor`/`product` differences caused exclusively by leading/trailing or Unicode whitespace in the provider strings (for example `"Array Networks "` vs `"Array Networks"`). No source identity or semantic fact was lost. NODE-2G was narrowed so only CISA human-readable `vendor`/`product` parity comparison treats Unicode presentation whitespace as equivalent; raw provider evidence remains unchanged and CVE/date/ransomware fields remain strict. A regression test was added before the accepted rerun.
+The first comparison exposed 19 presentation-only `vendor`/`product` differences caused exclusively by leading/trailing or Unicode whitespace in the provider strings. No source identity or semantic fact was lost. NODE-2G was narrowed so only CISA human-readable `vendor`/`product` parity comparison treats Unicode presentation whitespace as equivalent; raw provider evidence remains unchanged and CVE/date/ransomware fields remain strict.
 
 **CISA KEV live shadow parity: PASS.**
 
@@ -101,9 +102,7 @@ signals created = 0
 error           = none
 ```
 
-The zero newly created signals confirms the prior corrected run had already durably recorded the source truth before its final cursor-completion failure.
-
-Because CİTEM Technical Signal observations are append-only, the superseded pre-fix same-date members remain preserved as historical provenance. A raw same-date shadow projection therefore contained 4,448 CVEs: all 2,500 current Node members plus 1,948 superseded legacy members. NODE-2G does not delete those observations. Instead, the CİTEM acceptance projection reconstructs the current bounded population deterministically by EPSS descending, percentile descending, CVE ascending, then selects the first 2,500. This projection-only behavior is documented as `D-EPSS-004`.
+Because CİTEM Technical Signal observations are append-only, the superseded pre-fix same-date members remain preserved as historical provenance. NODE-2G does not delete those observations. Instead, the CİTEM acceptance projection reconstructs the current bounded population deterministically by EPSS descending, percentile descending, CVE ascending, then selects the first 2,500. This projection-only behavior is documented as `D-EPSS-004`.
 
 Final canonical parity:
 
@@ -122,9 +121,59 @@ accepted               = true
 differences            = []
 ```
 
-No current EPSS score, percentile, score-date or source identity mismatch remained after the bounded-current projection.
-
 **FIRST EPSS live shadow parity: PASS.**
+
+### ThreatFox live parity evidence
+
+Operator acceptance on 2026-08-12 used `upstreamSnapshotId = null` and identical explicit provider `first_seen` boundaries on the Node and CİTEM parity exports.
+
+Final classified parity:
+
+```text
+sourceKey               = THREATFOX
+nodeRecords             = 848
+citemRecords            = 529
+intersection            = 529
+nodeOnly                = 319
+citemOnly               = 0
+blockingDifferences     = 0
+unexplainedDifferences  = 0
+accepted                = true
+
+INTENTIONAL_DIFFERENCE  = 49
+UNSUPPORTED_LEGACY      = 270
+TEMPORAL_SKEW           = 11
+```
+
+Evidence classification:
+
+- 270 Node-only records were provider hash IOC types (`sha256_hash`, `sha1_hash`, `md5_hash`) preserved by Node but outside the frozen legacy CİTEM ThreatFox TechINT mapper. These are `UNSUPPORTED_LEGACY`.
+- 49 Node-only records were supported `domain`, `ip:port` or `url` reports whose provider IDs were already behind the legacy CİTEM provider-ID high-water while Node adaptive recovery retained them. These are `INTENTIONAL_DIFFERENCE` under the frozen recovery-model difference.
+- all 11 intersecting critical-fact mismatches were `lastSeen`; every value advanced monotonically on the later capture. The comparator now classifies only capture-order-consistent monotonic `lastSeen` evolution as `TEMPORAL_SKEW`; backwards movement remains a regression.
+
+No source identity, `firstSeen`, indicator value/type, malware-family label or provider-confidence regression remained.
+
+**ThreatFox live shadow parity: PASS.**
+
+### MalwareBazaar parity preparation
+
+The source-specific acceptance contract is frozen in `docs/NODE_2G_MALWAREBAZAAR_PARITY.md` before the live comparison.
+
+Implemented preparation:
+
+- parity identity = lowercase provider SHA-256;
+- live `upstreamSnapshotId = null`;
+- Node exporter requires explicit provider `first_seen` boundaries and filters `raw_source_records.effective_at`;
+- companion CİTEM exporter requires the same explicit boundaries and filters `technical_signal_observations.source_published_at`;
+- the comparator rejects missing/unbounded/mismatched MalwareBazaar scopes as `REGRESSION`;
+- deterministic Node/CİTEM fixture coverage freezes SHA-256, SHA-1, MD5, `firstSeen`, `lastSeen`, file name/size/type/MIME, signature, reporter and tags;
+- tags compare order-insensitively;
+- moving-source `lastSeen` may be `TEMPORAL_SKEW` only when capture ordering supports monotonic source evolution, including null-to-datetime advancement;
+- a later capture moving `lastSeen` backwards remains `REGRESSION`;
+- Node raw query manifests remain excluded from parity membership;
+- no cursor reset, history deletion, selector rewrite, credential migration or malware binary download was introduced.
+
+Live acceptance remains pending. Count equality is not an acceptance requirement because Node uses the admitted recent-time model while frozen legacy CİTEM uses `selector=100` plus `lastFirstSeen` high-water.
 
 ## All-five live Node acceptance
 
@@ -148,7 +197,7 @@ normalization failed  = 0
 
 **All-five live Node acceptance: PASS.**
 
-A source may be operationally `HEALTHY` while retaining a historical recovery gap. Current health must not overwrite coverage-gap state. Both bounded sources reported no recovery gap in this acceptance capture.
+A source may be operationally `HEALTHY` while retaining a historical recovery gap. Current health must not overwrite coverage-gap state.
 
 ## Failure isolation evidence
 
