@@ -7,7 +7,7 @@
 **Report state:** `PENDING_LIVE_RESTART_AND_CUTOVER`  
 **Collection authority cutover:** `NOT_YET_DECLARED`
 
-All five production-source live shadow parity gates are now accepted. The remaining NODE-2 closure work is deterministic resilience/security CI on the final head, one live Docker scheduler/worker/normalizer restart gate, the live worker credential-persistence/private-boundary audit, and the operator-controlled CİTEM collection-authority pause/rollback verification.
+All five production-source live shadow parity gates and every deterministic final-head CI gate are accepted. The remaining NODE-2 closure work is one live Docker scheduler/worker/normalizer restart gate, the live worker credential-persistence/private-boundary audit, and the operator-controlled CİTEM collection-authority pause/rollback verification.
 
 ## Production source matrix
 
@@ -34,7 +34,7 @@ ThreatFox retains only evidence-backed migration classifications (`UNSUPPORTED_L
 
 The aggregate suite runs after NODE-2A through NODE-2F against the same ephemeral PostgreSQL service.
 
-Already established:
+Established:
 
 - [x] all five production adapters registered;
 - [x] source definitions synchronized;
@@ -49,20 +49,36 @@ Already established:
 - [x] normalizers do not manufacture attack/victim/risk/priority/origin/target-country/global-threat-level facts;
 - [x] parity projection/unit coverage including bounded ThreatFox/MalwareBazaar/NVD behavior;
 - [x] parity exporter `capturedAt` as-of revision cutoff covered by tests;
-- [x] pre-resilience final head before the new gate had green GitHub Actions.
+- [x] deterministic provider-failure isolation acceptance;
+- [x] checkpoint non-advancement on failed source work;
+- [x] exponential retry/backoff / hot-loop prevention acceptance;
+- [x] normalization-failure raw-evidence preservation acceptance;
+- [x] expired worker lease recovery acceptance;
+- [x] expired normalizer lease recovery acceptance;
+- [x] scheduler duplicate-run suppression acceptance;
+- [x] final DB invariant audit;
+- [x] provider credential worker-only compose scope audit;
+- [x] Node private-CİTEM runtime dependency audit;
+- [x] TypeScript build;
+- [x] container build.
 
-Final-head additions now implemented and awaiting final CI confirmation:
+Final-head GitHub Actions evidence:
 
-- [ ] deterministic provider-failure isolation acceptance;
-- [ ] checkpoint non-advancement on failed source work;
-- [ ] exponential retry/backoff / hot-loop prevention acceptance;
-- [ ] normalization-failure raw-evidence preservation acceptance;
-- [ ] expired worker lease recovery acceptance;
-- [ ] expired normalizer lease recovery acceptance;
-- [ ] scheduler duplicate-run suppression acceptance;
-- [ ] final DB invariant audit;
-- [ ] provider credential worker-only compose scope audit;
-- [ ] Node private-CİTEM runtime dependency audit.
+```text
+head        = 8548cc20655b0c8753db113d1d76b9460dee1087
+workflow    = NODE validation
+run         = #95
+conclusion  = SUCCESS
+unit tests  = 112/112 PASS
+NODE-2A..G  = PASS
+resilience  = PASS
+final audit = PASS
+security    = PASS
+build       = PASS
+container   = PASS
+```
+
+Companion CİTEM PR #48 cutover-tool head `92008dcfa533b08ba775c6f98cefad07e4d3c76e` also completed Phase 2.1A validation successfully (run #413).
 
 See `docs/NODE_2G_RESILIENCE_AND_CUTOVER.md`.
 
@@ -117,7 +133,7 @@ nodeRecords             = 848
 citemRecords            = 529
 intersection            = 529
 nodeOnly                = 319
-citemOnly               = 0
+citemOnly                = 0
 blockingDifferences     = 0
 unexplainedDifferences  = 0
 accepted                = true
@@ -209,9 +225,9 @@ All five production sources have been simultaneously enabled on the Node and obs
 
 The final live restart gate will re-check these states after sequential scheduler/worker/normalizer restarts.
 
-## Failure isolation / resilience
+## Failure isolation / resilience — AUTOMATED PASS
 
-Runtime design already provides:
+Runtime design provides:
 
 - scheduler suppression of a second active source run;
 - idempotency key on scheduled/bootstrap run creation;
@@ -223,7 +239,7 @@ Runtime design already provides:
 - raw/checkpoint/job/run successful persistence inside one transaction;
 - exponential retry delay with configured maximum and provider Retry-After floor.
 
-Final deterministic CI implementation is in `scripts/test-node2g-resilience.ts`. It injects a process-local controlled CISA provider failure and a controlled synthetic normalization failure without calling live providers or changing production adapters.
+`test:node2g-resilience` now proves these invariants against PostgreSQL using `TEST_SYNTHETIC` plus process-local controlled source/normalizer failures. The test does not call live providers or alter production adapters. The final deterministic resilience gate passed in GitHub Actions run #95.
 
 Operator live gate:
 
@@ -241,32 +257,29 @@ Pending live evidence:
 
 PostgreSQL/host failover, backup restore and Oracle reboot remain NODE-8.
 
-## Security / provenance
+## Security / provenance — AUTOMATED PASS / LIVE SCAN PENDING
 
-Already established by source acceptance suites:
+Established by source acceptance and final CI:
 
 - [x] credentials remain server-side;
 - [x] request URLs do not contain provider credentials;
 - [x] raw/canonical/checkpoint/work descriptors do not persist credentials in authenticated-source acceptance;
 - [x] controlled/redacted source failure diagnostics;
-- [x] every canonical record traces to immutable raw evidence/source definition.
+- [x] every canonical record traces to immutable raw evidence/source definition;
+- [x] provider secrets removed from the shared Docker environment;
+- [x] `NVD_API_KEY`, `THREATFOX_AUTH_KEY`, `MALWAREBAZAAR_AUTH_KEY` injected only into `worker`;
+- [x] `SUPABASE_SERVICE_ROLE_KEY` and `NEXT_PUBLIC_SUPABASE_URL` rejected from Node runtime environment;
+- [x] CI static audit rejects private CİTEM/Supabase runtime dependencies in Node source/config;
+- [x] runtime CLI exposes exact-secret persistence scan for configured worker credentials.
 
-Final hardening on this head:
-
-- provider secrets removed from the shared Docker environment;
-- `NVD_API_KEY`, `THREATFOX_AUTH_KEY`, `MALWAREBAZAAR_AUTH_KEY` are injected only into `worker`;
-- runtime CLI `security-audit` can scan actual configured worker secrets against persisted evidence/checkpoint/work/failure state;
-- `SUPABASE_SERVICE_ROLE_KEY` and `NEXT_PUBLIC_SUPABASE_URL` are forbidden from Node runtime environment;
-- CI static audit rejects private CİTEM/Supabase runtime dependencies in Node source/config.
-
-Pending live evidence:
+Pending live evidence with the real accepted worker environment:
 
 - [ ] real worker credential persistence scan = zero occurrences;
 - [ ] private CİTEM runtime credentials absent from Node containers.
 
 ## Collection-authority cutover
 
-Companion CİTEM PR #48 now contains a guarded operator tool and runbook for collection-authority cutover.
+Companion CİTEM PR #48 contains a guarded operator tool and runbook for collection-authority cutover, and its current cutover-tool head passed validation.
 
 Required final sequence:
 
