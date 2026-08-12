@@ -85,6 +85,16 @@ Node preserves model version, score date, compressed/decompressed size, artifact
 
 Both legacy and Node implementations use the high-signal `minimum EPSS = 0.10`, maximum 2,500 population for operational capture. Absence from that bounded population is not score zero.
 
+### D-EPSS-004 — Append-only legacy provenance vs current bounded projection
+
+**Classification:** `INTENTIONAL_DIFFERENCE`
+
+During NODE-2G shadow acceptance, legacy CİTEM's REST request was found to use a bounded ordering parameter that did not reliably produce the intended highest-scoring 2,500 population. The corrected legacy request uses the EPSS endpoint's top-score ordering contract, after which the canonical same-score-date population matched Node exactly.
+
+CİTEM Technical Signal observations are append-only, so the superseded 1,948 same-date members from the pre-fix population remain preserved as historical provenance rather than being deleted. The NODE-2G CİTEM shadow projection therefore reconstructs the current EPSS bounded population deterministically from same-score-date observations by EPSS descending, percentile descending, CVE ascending, then selects the first 2,500. This projection changes no stored source history and is not permission to hide current critical-fact or membership mismatches.
+
+Accepted live evidence for `EPSS:2026-08-12` after current-population reconstruction: Node 2,500; CİTEM 2,500; intersection 2,500; Node-only 0; CİTEM-only 0; blocking differences 0; unexplained differences 0.
+
 ## ThreatFox
 
 ### D-TF-001 — Recovery model
