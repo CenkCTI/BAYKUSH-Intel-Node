@@ -194,6 +194,22 @@ async function driveNormalizationJobToSuccess(jobId: string): Promise<void> {
   assert.fail(`normalization job ${jobId} did not recover within bounded ticks`);
 }
 
+async function driveNormalizationJobToFailure(jobId: string): Promise<void> {
+  for (let i = 0; i < 500; i += 1) {
+    const result = await pool.query<{ state: string }>(
+      "SELECT state FROM normalization_jobs WHERE id = $1",
+      [jobId],
+    );
+    const state = result.rows[0]?.state;
+    assert.ok(state, `normalization job ${jobId} must exist`);
+    if (state === "FAILED") return;
+    assert.notEqual(state, "SUCCEEDED", `normalization job ${jobId} unexpectedly succeeded during controlled failure`);
+    const didWork = await normalizerTick("node2g-resilience-normalizer-failure");
+    assert.equal(didWork, true, "normalizer must make progress until the controlled target job fails");
+  }
+  assert.fail(`normalization job ${jobId} did not fail within bounded ticks`);
+}
+
 async function main(): Promise<void> {
   await syncSourceDefinitions([...adapterRegistry.values()]);
 
@@ -275,7 +291,7 @@ async function main(): Promise<void> {
       throw new Error("Controlled NODE-2G normalization failure");
     },
   });
-  assert.equal(await normalizerTick("node2g-resilience-normalizer-failure"), true);
+  await driveNormalizationJobToFailure(normalizationTarget.id);
 
   const failedNormalization = await pool.query<{ state: string; failure_code: string | null }>(
     "SELECT state, failure_code FROM normalization_jobs WHERE id = $1",
@@ -297,12 +313,15 @@ async function main(): Promise<void> {
 
   adapterRegistry.set("TEST_SYNTHETIC", originalSynthetic);
   await pool.query(
-    `UPDATE normalization_jobs
+    `UPDATE normalization_jobs j
         SET state = 'QUEUED', available_at = now(), finished_at = NULL,
             lease_owner = NULL, lease_expires_at = NULL,
             failure_code = NULL, failure_message = NULL, updated_at = now()
-      WHERE id = $1`,
-    [normalizationTarget.id],
+       FROM source_definitions d
+      WHERE j.source_definition_id = d.id
+        AND d.source_key = 'TEST_SYNTHETIC'
+        AND j.state = 'FAILED'
+        AND j.failure_code = 'NORMALIZATION_SCHEMA_ERROR'`,
   );
   await drainNormalization();
   const repairedNormalization = await pool.query<{ state: string }>(
