@@ -153,6 +153,33 @@ function factsEquivalent(sourceKey: ProductionSourceKey, field: string, nodeValu
   return canonicalJson(nodeValue) === canonicalJson(citemValue);
 }
 
+function sourceInstantMs(value: unknown): number | null {
+  if (typeof value !== "string") return null;
+  const parsed = Date.parse(value);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function threatFoxLastSeenTemporalSkew(
+  field: string,
+  nodeValue: unknown,
+  citemValue: unknown,
+  nodeCapturedAt: string,
+  citemCapturedAt: string,
+): boolean {
+  if (field !== "lastSeen") return false;
+  const nodeLastSeen = sourceInstantMs(nodeValue);
+  const citemLastSeen = sourceInstantMs(citemValue);
+  if (nodeLastSeen === null || citemLastSeen === null) return false;
+
+  const nodeCapture = Date.parse(nodeCapturedAt);
+  const citemCapture = Date.parse(citemCapturedAt);
+  if (!Number.isFinite(nodeCapture) || !Number.isFinite(citemCapture) || nodeCapture === citemCapture) return false;
+
+  return nodeCapture < citemCapture
+    ? nodeLastSeen <= citemLastSeen
+    : nodeLastSeen >= citemLastSeen;
+}
+
 function observationBasisEquivalent(sourceKey: ProductionSourceKey, nodeBasis: string, citemBasis: string): boolean {
   if (nodeBasis === citemBasis) return true;
   if (sourceKey === "NVD_CVE") {
@@ -286,14 +313,19 @@ export function compareParitySnapshots(
       const nodeValue = nodeRecord.facts[field];
       const citemValue = citemRecord.facts[field];
       if (factsEquivalent(sourceKey, field, nodeValue, citemValue)) continue;
+
+      const temporalSkew = sourceKey === "THREATFOX"
+        && threatFoxLastSeenTemporalSkew(field, nodeValue, citemValue, node.capturedAt, citem.capturedAt);
       differences.push({
         kind: "FACT_MISMATCH",
         sourceRecordId,
         field,
         nodeValue,
         citemValue,
-        classification: "REGRESSION",
-        reason: `Critical ${sourceKey} source fact differs for the same source identity.`,
+        classification: temporalSkew ? "TEMPORAL_SKEW" : "REGRESSION",
+        reason: temporalSkew
+          ? "ThreatFox last_seen advanced monotonically on the later live capture; the provider fact is source-supported temporal skew, not semantic drift."
+          : `Critical ${sourceKey} source fact differs for the same source identity.`,
       });
     }
   }
