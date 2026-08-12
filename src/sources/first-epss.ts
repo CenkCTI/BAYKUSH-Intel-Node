@@ -34,7 +34,12 @@ const USER_AGENT = "BAYKUSH-Intelligence-Node/0.2 (+https://github.com/CenkCTI/B
 const cveSchema = z.string().regex(/^CVE-[0-9]{4}-[0-9]{4,19}$/);
 const sha256Schema = z.string().regex(/^[0-9a-f]{64}$/);
 const dateSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
-const decimal01SourceSchema = z.string().regex(/^(?:0(?:\.\d+)?|1(?:\.0+)?)$/);
+const decimal01SourceSchema = z.string()
+  .regex(/^(?:\d+(?:\.\d+)?|\.\d+)(?:[eE][+-]?\d+)?$/)
+  .refine((value) => {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) && parsed >= 0 && parsed <= 1;
+  });
 
 const captureProfileSchema = z.object({
   key: z.literal("EPSS_HIGH_SIGNAL_V1"),
