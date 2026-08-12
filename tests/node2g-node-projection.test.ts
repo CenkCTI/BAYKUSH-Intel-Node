@@ -172,11 +172,14 @@ describe("NODE-2G Node parity projection", () => {
     expect(query.mock.calls[1]?.[1]).toEqual([
       "source-nvd",
       [],
+      "2026-08-12T14:00:00.000Z",
       "2026-08-12T13:00:00.000Z",
       "2026-08-12T14:00:00.000Z",
     ]);
-    expect(String(query.mock.calls[1]?.[0])).toContain("upstream_updated_at >= $3::timestamptz");
-    expect(String(query.mock.calls[1]?.[0])).toContain("upstream_updated_at <= $4::timestamptz");
+    expect(String(query.mock.calls[1]?.[0])).toContain("received_at <= $3::timestamptz");
+    expect(String(query.mock.calls[1]?.[0])).toContain("created_at <= $3::timestamptz");
+    expect(String(query.mock.calls[1]?.[0])).toContain("upstream_updated_at >= $4::timestamptz");
+    expect(String(query.mock.calls[1]?.[0])).toContain("upstream_updated_at <= $5::timestamptz");
   });
 
   it("projects shared ThreatFox provider facts and bounds live parity by provider first_seen", async () => {
@@ -226,12 +229,15 @@ describe("NODE-2G Node parity projection", () => {
     expect(query.mock.calls[1]?.[1]).toEqual([
       "source-threatfox",
       ["query-manifest"],
+      "2099-01-03T00:00:00.000Z",
       "2098-12-31T23:30:00.000Z",
       "2099-01-01T00:30:00.000Z",
     ]);
-    expect(String(query.mock.calls[1]?.[0])).toContain("effective_at >= $3::timestamptz");
-    expect(String(query.mock.calls[1]?.[0])).toContain("effective_at <= $4::timestamptz");
-    expect(String(query.mock.calls[1]?.[0])).not.toContain("upstream_updated_at >= $3::timestamptz");
+    expect(String(query.mock.calls[1]?.[0])).toContain("received_at <= $3::timestamptz");
+    expect(String(query.mock.calls[1]?.[0])).toContain("created_at <= $3::timestamptz");
+    expect(String(query.mock.calls[1]?.[0])).toContain("effective_at >= $4::timestamptz");
+    expect(String(query.mock.calls[1]?.[0])).toContain("effective_at <= $5::timestamptz");
+    expect(String(query.mock.calls[1]?.[0])).not.toContain("upstream_updated_at >= $4::timestamptz");
   });
 
   it("requires an explicit provider first_seen window for ThreatFox exports", async () => {
@@ -344,11 +350,12 @@ describe("NODE-2G Node parity projection", () => {
     expect(query.mock.calls[1]?.[1]).toEqual([
       "source-malwarebazaar",
       ["query-manifest"],
+      "2099-01-01T00:40:00.000Z",
       "2098-12-31T23:50:00.000Z",
       "2099-01-01T00:20:00.000Z",
     ]);
-    expect(String(query.mock.calls[1]?.[0])).toContain("effective_at >= $3::timestamptz");
-    expect(String(query.mock.calls[1]?.[0])).toContain("effective_at <= $4::timestamptz");
+    expect(String(query.mock.calls[1]?.[0])).toContain("effective_at >= $4::timestamptz");
+    expect(String(query.mock.calls[1]?.[0])).toContain("effective_at <= $5::timestamptz");
   });
 
   it("requires an explicit provider first_seen window for MalwareBazaar exports", async () => {
@@ -365,6 +372,32 @@ describe("NODE-2G Node parity projection", () => {
       capturedAt: "2099-01-01T00:40:00.000Z",
     })).rejects.toThrow("MALWAREBAZAAR parity export requires an explicit provider first_seen window");
     expect(query).toHaveBeenCalledTimes(1);
+  });
+
+  it("uses capturedAt as an as-of cutoff for retained raw revisions", async () => {
+    const query = vi.fn()
+      .mockResolvedValueOnce({
+        rows: [{
+          id: "source-1",
+          source_class: "EXPLOITED_VULNERABILITY_CATALOG",
+          observation_basis: "PUBLISHED",
+        }],
+      })
+      .mockResolvedValueOnce({ rows: [] });
+    const pool = { query } as unknown as Pool;
+
+    const snapshot = await exportNodeParitySnapshot(pool, "CISA_KEV", {
+      capturedAt: "2026-08-12T20:49:15.604Z",
+    });
+
+    expect(snapshot.capturedAt).toBe("2026-08-12T20:49:15.604Z");
+    expect(query.mock.calls[1]?.[1]).toEqual([
+      "source-1",
+      ["__catalog_manifest__"],
+      "2026-08-12T20:49:15.604Z",
+    ]);
+    expect(String(query.mock.calls[1]?.[0])).toContain("received_at <= $3::timestamptz");
+    expect(String(query.mock.calls[1]?.[0])).toContain("created_at <= $3::timestamptz");
   });
 
   it("rejects explicit parity windows for sources without a source-native window contract", async () => {
