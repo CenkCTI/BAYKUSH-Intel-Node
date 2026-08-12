@@ -5,7 +5,13 @@ function snapshot(
   producer: "NODE" | "CITEM",
   sourceKey: ParitySnapshot["sourceKey"],
   facts: Record<string, unknown>,
-  options: { sourceRecordId?: string; upstreamSnapshotId?: string | null; sourceClass?: string; observationBasis?: string } = {},
+  options: {
+    sourceRecordId?: string;
+    upstreamSnapshotId?: string | null;
+    sourceClass?: string;
+    observationBasis?: string;
+    window?: ParitySnapshot["window"];
+  } = {},
 ): ParitySnapshot {
   return {
     schemaVersion: NODE2G_PARITY_SCHEMA_VERSION,
@@ -13,7 +19,7 @@ function snapshot(
     sourceKey,
     capturedAt: "2026-08-12T13:00:00.000Z",
     upstreamSnapshotId: options.upstreamSnapshotId ?? "snapshot-1",
-    window: { start: null, end: null },
+    window: options.window ?? { start: null, end: null },
     semantics: {
       sourceClass: options.sourceClass ?? (sourceKey === "CISA_KEV" ? "EXPLOITED_VULNERABILITY_CATALOG" : "IOC_SHARING"),
       observationBasis: options.observationBasis ?? (sourceKey === "CISA_KEV" ? "PUBLISHED" : "REPORTED"),
@@ -44,6 +50,11 @@ const threatFoxFacts = {
   lastSeen: "2026-08-12T12:30:00.000Z",
   malwareFamily: "example",
   providerConfidence: 80,
+};
+
+const threatFoxWindow: ParitySnapshot["window"] = {
+  start: "2026-08-11T11:50:00.000Z",
+  end: "2026-08-12T11:50:00.000Z",
 };
 
 describe("NODE-2G neutral parity", () => {
@@ -89,9 +100,50 @@ describe("NODE-2G neutral parity", () => {
     expect(compareParitySnapshots(node, citem).accepted).toBe(true);
   });
 
+  it("accepts exact intersecting ThreatFox critical facts inside the same bounded first_seen window", () => {
+    const node = snapshot("NODE", "THREATFOX", threatFoxFacts, {
+      sourceRecordId: "42",
+      upstreamSnapshotId: null,
+      window: threatFoxWindow,
+    });
+    const citem = snapshot("CITEM", "THREATFOX", threatFoxFacts, {
+      sourceRecordId: "42",
+      upstreamSnapshotId: null,
+      window: threatFoxWindow,
+    });
+    const result = compareParitySnapshots(node, citem);
+    expect(result.accepted).toBe(true);
+    expect(result.intersection).toBe(1);
+    expect(result.blockingDifferences).toBe(0);
+    expect(result.unexplainedDifferences).toBe(0);
+  });
+
+  it("blocks ThreatFox comparison when the two producers do not use the same explicit first_seen window", () => {
+    const node = snapshot("NODE", "THREATFOX", threatFoxFacts, {
+      sourceRecordId: "42",
+      upstreamSnapshotId: null,
+      window: threatFoxWindow,
+    });
+    const citem = snapshot("CITEM", "THREATFOX", threatFoxFacts, {
+      sourceRecordId: "42",
+      upstreamSnapshotId: null,
+      window: {
+        start: "2026-08-11T11:40:00.000Z",
+        end: "2026-08-12T11:40:00.000Z",
+      },
+    });
+    const result = compareParitySnapshots(node, citem);
+    expect(result.accepted).toBe(false);
+    expect(result.differences).toContainEqual(expect.objectContaining({
+      kind: "SEMANTIC_MISMATCH",
+      field: "window",
+      classification: "REGRESSION",
+    }));
+  });
+
   it("requires live ThreatFox membership skew to be explicitly classified", () => {
-    const node = snapshot("NODE", "THREATFOX", threatFoxFacts, { sourceRecordId: "42", upstreamSnapshotId: null });
-    const citem = { ...snapshot("CITEM", "THREATFOX", threatFoxFacts, { sourceRecordId: "42", upstreamSnapshotId: null }), records: [] };
+    const node = snapshot("NODE", "THREATFOX", threatFoxFacts, { sourceRecordId: "42", upstreamSnapshotId: null, window: threatFoxWindow });
+    const citem = { ...snapshot("CITEM", "THREATFOX", threatFoxFacts, { sourceRecordId: "42", upstreamSnapshotId: null, window: threatFoxWindow }), records: [] };
     const unresolved = compareParitySnapshots(node, citem);
     expect(unresolved.accepted).toBe(false);
     expect(unresolved.unexplainedDifferences).toBe(1);
@@ -123,9 +175,9 @@ describe("NODE-2G neutral parity", () => {
   });
 
   it("blocks duplicate source identities inside a parity snapshot", () => {
-    const node = snapshot("NODE", "THREATFOX", threatFoxFacts, { sourceRecordId: "42", upstreamSnapshotId: null });
+    const node = snapshot("NODE", "THREATFOX", threatFoxFacts, { sourceRecordId: "42", upstreamSnapshotId: null, window: threatFoxWindow });
     node.records.push(structuredClone(node.records[0]!));
-    const citem = snapshot("CITEM", "THREATFOX", threatFoxFacts, { sourceRecordId: "42", upstreamSnapshotId: null });
+    const citem = snapshot("CITEM", "THREATFOX", threatFoxFacts, { sourceRecordId: "42", upstreamSnapshotId: null, window: threatFoxWindow });
     const result = compareParitySnapshots(node, citem);
     expect(result.accepted).toBe(false);
     expect(result.differences.some((difference) => difference.kind === "DUPLICATE_IDENTITY")).toBe(true);
