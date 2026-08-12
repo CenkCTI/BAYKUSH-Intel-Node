@@ -99,6 +99,8 @@ interface SourceParityRule {
   exactMembershipWhenSameSnapshot: boolean;
 }
 
+const movingRecentPopulationSources = new Set<ProductionSourceKey>(["THREATFOX", "MALWAREBAZAAR"]);
+
 export const sourceParityRules: Readonly<Record<ProductionSourceKey, SourceParityRule>> = {
   CISA_KEV: {
     criticalFactKeys: ["cve", "dateAdded", "dueDate", "vendor", "product", "ransomwareUse"],
@@ -159,25 +161,28 @@ function sourceInstantMs(value: unknown): number | null {
   return Number.isFinite(parsed) ? parsed : null;
 }
 
-function threatFoxLastSeenTemporalSkew(
+function movingSourceLastSeenTemporalSkew(
+  sourceKey: ProductionSourceKey,
   field: string,
   nodeValue: unknown,
   citemValue: unknown,
   nodeCapturedAt: string,
   citemCapturedAt: string,
 ): boolean {
-  if (field !== "lastSeen") return false;
-  const nodeLastSeen = sourceInstantMs(nodeValue);
-  const citemLastSeen = sourceInstantMs(citemValue);
-  if (nodeLastSeen === null || citemLastSeen === null) return false;
+  if (!movingRecentPopulationSources.has(sourceKey) || field !== "lastSeen") return false;
 
   const nodeCapture = Date.parse(nodeCapturedAt);
   const citemCapture = Date.parse(citemCapturedAt);
   if (!Number.isFinite(nodeCapture) || !Number.isFinite(citemCapture) || nodeCapture === citemCapture) return false;
 
-  return nodeCapture < citemCapture
-    ? nodeLastSeen <= citemLastSeen
-    : nodeLastSeen >= citemLastSeen;
+  const earlierValue = nodeCapture < citemCapture ? nodeValue : citemValue;
+  const laterValue = nodeCapture < citemCapture ? citemValue : nodeValue;
+  const earlierLastSeen = sourceInstantMs(earlierValue);
+  const laterLastSeen = sourceInstantMs(laterValue);
+
+  if (earlierLastSeen === null && laterLastSeen !== null) return true;
+  if (earlierLastSeen === null || laterLastSeen === null) return false;
+  return earlierLastSeen <= laterLastSeen;
 }
 
 function observationBasisEquivalent(sourceKey: ProductionSourceKey, nodeBasis: string, citemBasis: string): boolean {
@@ -249,7 +254,7 @@ export function compareParitySnapshots(
   const citemRecords = uniqueRecordMap(citem, differences);
   const sameUpstreamSnapshot = node.upstreamSnapshotId !== null && node.upstreamSnapshotId === citem.upstreamSnapshotId;
 
-  if (sourceKey === "THREATFOX") {
+  if (movingRecentPopulationSources.has(sourceKey)) {
     const nodeBounded = node.window.start !== null && node.window.end !== null;
     const citemBounded = citem.window.start !== null && citem.window.end !== null;
     const sameWindow = nodeBounded && citemBounded && canonicalJson(node.window) === canonicalJson(citem.window);
@@ -261,7 +266,7 @@ export function compareParitySnapshots(
         nodeValue: node.window,
         citemValue: citem.window,
         classification: "REGRESSION",
-        reason: "ThreatFox live parity requires the same explicit provider first_seen window on Node and CITEM.",
+        reason: `${sourceKey} live parity requires the same explicit provider first_seen window on Node and CITEM.`,
       });
     }
   }
@@ -314,8 +319,14 @@ export function compareParitySnapshots(
       const citemValue = citemRecord.facts[field];
       if (factsEquivalent(sourceKey, field, nodeValue, citemValue)) continue;
 
-      const temporalSkew = sourceKey === "THREATFOX"
-        && threatFoxLastSeenTemporalSkew(field, nodeValue, citemValue, node.capturedAt, citem.capturedAt);
+      const temporalSkew = movingSourceLastSeenTemporalSkew(
+        sourceKey,
+        field,
+        nodeValue,
+        citemValue,
+        node.capturedAt,
+        citem.capturedAt,
+      );
       differences.push({
         kind: "FACT_MISMATCH",
         sourceRecordId,
@@ -324,7 +335,7 @@ export function compareParitySnapshots(
         citemValue,
         classification: temporalSkew ? "TEMPORAL_SKEW" : "REGRESSION",
         reason: temporalSkew
-          ? "ThreatFox last_seen advanced monotonically on the later live capture; the provider fact is source-supported temporal skew, not semantic drift."
+          ? `${sourceKey} last_seen advanced monotonically on the later live capture; the provider fact is source-supported temporal skew, not semantic drift.`
           : `Critical ${sourceKey} source fact differs for the same source identity.`,
       });
     }
