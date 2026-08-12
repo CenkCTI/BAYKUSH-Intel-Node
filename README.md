@@ -73,6 +73,8 @@ The first deployment target is an Oracle VM, but the runtime is designed to rema
 - [NVD CVE Source Admission](docs/SOURCE_ADMISSION_NVD_CVE.md)
 - [NODE-2D FIRST EPSS](docs/NODE_2D_FIRST_EPSS.md)
 - [FIRST EPSS Source Admission](docs/SOURCE_ADMISSION_FIRST_EPSS.md)
+- [NODE-2E ThreatFox](docs/NODE_2E_THREATFOX.md)
+- [ThreatFox Source Admission](docs/SOURCE_ADMISSION_THREATFOX.md)
 
 ## Development sequence
 
@@ -112,10 +114,12 @@ Additional sources are admitted only after the measurement and CİTEM Global Vie
 
 ## Current phase
 
-**NODE-2D — FIRST EPSS Production Adapter**
+**NODE-2E — ThreatFox Recent IOC Reporting Adapter**
 
-NODE-2D collects FIRST EPSS from the official daily compressed bulk dataset rather than using the lookup API for synchronization. The complete source artifact is streamed and validated under explicit compressed/decompressed bounds, model-version and score-date provenance are preserved, and deterministic top-K selection retains the bounded `EPSS_HIGH_SIGNAL_V1` population (`EPSS >= 0.10`, maximum 2500 records).
+NODE-2E collects the authenticated ThreatFox Community API `get_iocs` surface using a bounded one-to-seven-day overlapping recovery window. It preserves source IOC objects, raw response/query provenance, immutable revisions, query coverage context, and order-independent snapshot fingerprints without inventing a provider cursor.
 
-EPSS canonical output is `EXPLOIT_PROBABILITY_SCORE` only. It is not active-exploitation proof, attack volume, severity, business risk, remediation priority, or BAYKUSH Global Priority. Absence from the retained population is not score zero. The complete daily file is validated while only the explicitly declared bounded population plus a provenance manifest is persisted.
+ThreatFox output normalizes to source-scoped `IOC_REPORT` evidence. Known domain, URL, IP:port, MD5, SHA1, and SHA256 indicators are mapped conservatively while unknown/new types remain available as reports with explicit normalization status. ThreatFox confidence, malware labels, reporter metadata, first-seen, and last-seen remain source assertions; they are not converted into BAYKUSH confidence, attack counts, attacker origin, risk, severity, priority, active exploitation, or global threat level.
 
-CISA KEV and NVD remain independent upstream semantics. ThreatFox and MalwareBazaar remain out of scope until NODE-2E and NODE-2F.
+The Community API requires `THREATFOX_AUTH_KEY`, which is sent only as an HTTP header and is never persisted. The source remains disabled by default, with commercial use recorded as restricted and redistribution kept unknown pending the applicable abuse.ch terms/subscription context.
+
+CISA KEV, NVD, FIRST EPSS, and ThreatFox remain independent upstream semantics. MalwareBazaar remains out of scope until NODE-2F.

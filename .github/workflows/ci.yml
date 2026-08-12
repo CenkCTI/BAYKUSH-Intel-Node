@@ -54,6 +54,8 @@ jobs:
         run: npm run test:node2c
       - name: NODE-2D FIRST EPSS acceptance
         run: npm run test:node2d
+      - name: NODE-2E ThreatFox acceptance
+        run: npm run test:node2e
       - name: Build
         run: npm run build
       - name: Build container

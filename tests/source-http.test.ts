@@ -28,6 +28,59 @@ describe("source HTTP transport", () => {
     expect(response.etag).toBe("fixture-v1");
   });
 
+  it("supports a bounded POST body without changing GET defaults", async () => {
+    let observedMethod: string | undefined;
+    let observedBody: string | undefined;
+    let observedAuth: string | null = null;
+    const fakeFetch = (async (_input: string | URL | Request, init?: RequestInit) => {
+      observedMethod = init?.method;
+      observedBody = typeof init?.body === "string" ? init.body : undefined;
+      observedAuth = new Headers(init?.headers).get("Auth-Key");
+      return new Response(JSON.stringify({ ok: true }), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      });
+    }) as typeof fetch;
+
+    await request(fakeFetch, {
+      method: "POST",
+      body: '{"query":"get_iocs","days":1}',
+      maxRequestBytes: 1024,
+      headers: { "content-type": "application/json", "Auth-Key": "fixture-key" },
+    });
+
+    expect(observedMethod).toBe("POST");
+    expect(observedBody).toBe('{"query":"get_iocs","days":1}');
+    expect(observedAuth).toBe("fixture-key");
+  });
+
+  it("rejects GET request bodies before transport", async () => {
+    let called = false;
+    const fakeFetch = (async () => {
+      called = true;
+      return new Response("{}");
+    }) as typeof fetch;
+    await expect(request(fakeFetch, { body: "{}" })).rejects.toMatchObject({
+      code: "SCHEMA_ERROR",
+      retryable: false,
+    });
+    expect(called).toBe(false);
+  });
+
+  it("fails closed when a POST body crosses the request byte bound", async () => {
+    let called = false;
+    const fakeFetch = (async () => {
+      called = true;
+      return new Response("{}");
+    }) as typeof fetch;
+    await expect(request(fakeFetch, {
+      method: "POST",
+      body: "x".repeat(33),
+      maxRequestBytes: 32,
+    })).rejects.toMatchObject({ code: "PAYLOAD_LIMIT_EXCEEDED", retryable: false });
+    expect(called).toBe(false);
+  });
+
   it("rejects requests outside the fixed provider endpoint before transport", async () => {
     let called = false;
     const fakeFetch = (async () => {
@@ -39,6 +92,22 @@ describe("source HTTP transport", () => {
       retryable: false,
     });
     expect(called).toBe(false);
+  });
+
+  it("redacts exact secret values from provider diagnostic headers", async () => {
+    const secret = "never-log-me";
+    const fakeFetch = (async () => new Response("unauthorized", {
+      status: 401,
+      headers: { message: `bad key ${secret}` },
+    })) as typeof fetch;
+    try {
+      await request(fakeFetch, { redactValues: [secret] });
+      throw new Error("expected authentication failure");
+    } catch (error) {
+      expect(error).toBeInstanceOf(CollectionFailure);
+      expect(String((error as Error).message)).not.toContain(secret);
+      expect(String((error as Error).message)).toContain("[REDACTED]");
+    }
   });
 
   it("carries Retry-After from a 429 response", async () => {

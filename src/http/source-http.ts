@@ -1,11 +1,16 @@
 import { CollectionFailure } from "../runtime/failure.js";
 
+export type SourceHttpMethod = "GET" | "POST";
+
 export interface SourceHttpRequest {
   url: URL;
   allowedHost: string;
   allowedPath: string;
   maxBytes: number;
   timeoutMs: number;
+  method?: SourceHttpMethod;
+  body?: string;
+  maxRequestBytes?: number;
   acceptedStatuses?: readonly number[];
   headers?: Readonly<Record<string, string>>;
   /** Exact secret values that must be redacted if a provider echoes them in diagnostic headers. */
@@ -51,6 +56,20 @@ function validateRequest(input: SourceHttpRequest): void {
   }
   if (!Number.isInteger(input.timeoutMs) || input.timeoutMs < 1) {
     throw new CollectionFailure("INTERNAL_ERROR", "Source request timeout is invalid", false);
+  }
+
+  const method = input.method ?? "GET";
+  if (method === "GET" && input.body !== undefined) {
+    throw new CollectionFailure("SCHEMA_ERROR", "GET source requests must not include a request body", false);
+  }
+  if (input.maxRequestBytes !== undefined && (!Number.isInteger(input.maxRequestBytes) || input.maxRequestBytes < 1)) {
+    throw new CollectionFailure("INTERNAL_ERROR", "Source request byte limit is invalid", false);
+  }
+  if (input.body !== undefined) {
+    const maxRequestBytes = input.maxRequestBytes ?? 16 * 1024;
+    if (Buffer.byteLength(input.body, "utf8") > maxRequestBytes) {
+      throw new CollectionFailure("PAYLOAD_LIMIT_EXCEEDED", `Source request exceeds ${maxRequestBytes} bytes`, false);
+    }
   }
 }
 
@@ -132,11 +151,12 @@ export async function fetchBoundedSource(input: SourceHttpRequest): Promise<Sour
     let response: Response;
     try {
       const init: RequestInit = {
-        method: "GET",
+        method: input.method ?? "GET",
         redirect: "manual",
         signal: controller.signal,
       };
       if (input.headers) init.headers = { ...input.headers };
+      if (input.body !== undefined) init.body = input.body;
       response = await fetchImpl(input.url, init);
     } catch (error) {
       if (controller.signal.aborted) {
