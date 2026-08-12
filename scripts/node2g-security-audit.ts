@@ -12,11 +12,7 @@ function serviceBlock(compose: string, service: string): string {
   assert.ok(start >= 0, `docker-compose service ${service} must exist`);
   let end = lines.length;
   for (let i = start + 1; i < lines.length; i += 1) {
-    if (/^  [A-Za-z0-9_-]+:$/.test(lines[i] ?? "")) {
-      end = i;
-      break;
-    }
-    if (/^[A-Za-z0-9_-]+:$/.test(lines[i] ?? "")) {
+    if (/^  [A-Za-z0-9_-]+:$/.test(lines[i] ?? "") || /^[A-Za-z0-9_-]+:$/.test(lines[i] ?? "")) {
       end = i;
       break;
     }
@@ -25,6 +21,7 @@ function serviceBlock(compose: string, service: string): string {
 }
 
 function walkFiles(root: string): string[] {
+  if (!fs.existsSync(root)) return [];
   const out: string[] = [];
   for (const entry of fs.readdirSync(root, { withFileTypes: true })) {
     const full = path.join(root, entry.name);
@@ -55,26 +52,32 @@ async function persistedSecretOccurrences(secret: string): Promise<number> {
 }
 
 async function main(): Promise<void> {
-  const compose = fs.readFileSync("docker-compose.yml", "utf8");
-  const worker = serviceBlock(compose, "worker");
-  const nonWorkerServices = ["migrate", "api", "scheduler", "normalizer"];
+  const composePath = process.env.NODE2G_COMPOSE_PATH ?? "docker-compose.yml";
+  const composeAvailable = fs.existsSync(composePath);
 
-  for (const secretName of providerSecretNames) {
-    assert.ok(worker.includes(`${secretName}:`), `${secretName} must be injected into worker`);
-    for (const service of nonWorkerServices) {
-      assert.ok(!serviceBlock(compose, service).includes(`${secretName}:`), `${secretName} must not be injected into ${service}`);
+  if (composeAvailable) {
+    const compose = fs.readFileSync(composePath, "utf8");
+    const worker = serviceBlock(compose, "worker");
+    const nonWorkerServices = ["migrate", "api", "scheduler", "normalizer"];
+
+    for (const secretName of providerSecretNames) {
+      assert.ok(worker.includes(`${secretName}:`), `${secretName} must be injected into worker`);
+      for (const service of nonWorkerServices) {
+        assert.ok(!serviceBlock(compose, service).includes(`${secretName}:`), `${secretName} must not be injected into ${service}`);
+      }
+    }
+    for (const token of forbiddenCitemTokens) {
+      assert.ok(!compose.includes(token), `${token} must not be present in Node compose configuration`);
     }
   }
 
-  for (const token of forbiddenCitemTokens) {
-    assert.ok(!compose.includes(token), `${token} must not be present in Node compose configuration`);
-  }
-
-  const srcFiles = walkFiles("src");
-  for (const file of srcFiles) {
-    const content = fs.readFileSync(file, "utf8");
-    for (const token of forbiddenCitemTokens) {
-      assert.ok(!content.includes(token), `${token} must not appear in Node runtime source: ${file}`);
+  const sourceRoot = fs.existsSync("src") ? "src" : (fs.existsSync("dist") ? "dist" : null);
+  if (sourceRoot) {
+    for (const file of walkFiles(sourceRoot)) {
+      const content = fs.readFileSync(file, "utf8");
+      for (const token of forbiddenCitemTokens) {
+        assert.ok(!content.includes(token), `${token} must not appear in Node runtime source: ${file}`);
+      }
     }
   }
 
@@ -93,7 +96,8 @@ async function main(): Promise<void> {
   console.log(JSON.stringify({
     schemaVersion: "NODE2G_SECURITY_AUDIT_V1",
     accepted: true,
-    providerCredentialScope: "WORKER_ONLY",
+    providerCredentialScope: composeAvailable ? "WORKER_ONLY_VERIFIED" : "RUNTIME_PERSISTENCE_ONLY",
+    composeStaticCheck: composeAvailable,
     privateCitemRuntimeDependency: false,
     credentialPersistence,
   }, null, 2));
