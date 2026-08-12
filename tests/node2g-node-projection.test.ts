@@ -215,6 +215,22 @@ describe("NODE-2G Node parity projection", () => {
     expect(String(query.mock.calls[1]?.[0])).not.toContain("upstream_updated_at >= $3::timestamptz");
   });
 
+  it("requires an explicit provider first_seen window for ThreatFox exports", async () => {
+    const query = vi.fn().mockResolvedValueOnce({
+      rows: [{
+        id: "source-threatfox",
+        source_class: "IOC_SHARING",
+        observation_basis: "REPORTED",
+      }],
+    });
+    const pool = { query } as unknown as Pool;
+
+    await expect(exportNodeParitySnapshot(pool, "THREATFOX", {
+      capturedAt: "2099-01-03T00:00:00.000Z",
+    })).rejects.toThrow("requires an explicit provider first_seen window");
+    expect(query).toHaveBeenCalledTimes(1);
+  });
+
   it("does not reinterpret a ThreatFox Malpedia reference URL as a malware-family label", async () => {
     const query = vi.fn()
       .mockResolvedValueOnce({
@@ -248,6 +264,8 @@ describe("NODE-2G Node parity projection", () => {
 
     const snapshot = await exportNodeParitySnapshot(pool, "THREATFOX", {
       capturedAt: "2099-01-03T00:00:00.000Z",
+      windowStart: "2098-12-31T23:30:00Z",
+      windowEnd: "2099-01-01T00:30:00Z",
     });
 
     expect(snapshot.records[0]?.facts.malwareFamily).toBeNull();
