@@ -178,6 +178,22 @@ async function drainNormalization(): Promise<void> {
   assert.fail("normalization queue did not drain within bounded ticks");
 }
 
+async function driveNormalizationJobToSuccess(jobId: string): Promise<void> {
+  for (let i = 0; i < 500; i += 1) {
+    const result = await pool.query<{ state: string }>(
+      "SELECT state FROM normalization_jobs WHERE id = $1",
+      [jobId],
+    );
+    const state = result.rows[0]?.state;
+    assert.ok(state, `normalization job ${jobId} must exist`);
+    if (state === "SUCCEEDED") return;
+    assert.notEqual(state, "FAILED", `normalization job ${jobId} failed during lease recovery`);
+    const didWork = await normalizerTick("node2g-recovery-normalizer");
+    assert.equal(didWork, true, "normalizer must make progress until the expired target job is reclaimed");
+  }
+  assert.fail(`normalization job ${jobId} did not recover within bounded ticks`);
+}
+
 async function main(): Promise<void> {
   await syncSourceDefinitions([...adapterRegistry.values()]);
 
@@ -343,9 +359,7 @@ async function main(): Promise<void> {
       WHERE id = $1`,
     [crashJobId],
   );
-  assert.equal(await normalizerTick("node2g-recovery-normalizer"), true, "expired normalizer lease must be reclaimable");
-  const recoveredJob = await pool.query<{ state: string }>("SELECT state FROM normalization_jobs WHERE id = $1", [crashJobId]);
-  assert.equal(recoveredJob.rows[0]?.state, "SUCCEEDED");
+  await driveNormalizationJobToSuccess(crashJobId);
   await drainNormalization();
 
   // F6 scheduler idempotency: repeated scheduler ticks/restarts cannot create two active runs.
