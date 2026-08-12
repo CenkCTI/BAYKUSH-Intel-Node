@@ -64,6 +64,31 @@ describe("NODE-2G neutral parity", () => {
     expect(result.differences[0]?.classification).toBe("REGRESSION");
   });
 
+  it("accepts NVD ENRICHED and legacy PUBLISHED as documented source-semantic equivalence", () => {
+    const facts = { cve: "CVE-2026-4321", published: "2026-08-01T00:00:00.000Z", lastModified: "2026-08-12T00:00:00.000Z", vulnStatus: "Analyzed" };
+    const node = snapshot("NODE", "NVD_CVE", facts, { sourceClass: "VULNERABILITY_DATABASE", observationBasis: "ENRICHED" });
+    const citem = snapshot("CITEM", "NVD_CVE", facts, { sourceClass: "VULNERABILITY_DATABASE", observationBasis: "PUBLISHED" });
+    const result = compareParitySnapshots(node, citem);
+    expect(result.accepted).toBe(true);
+    expect(result.differences.some((difference) => difference.classification === "SEMANTICALLY_EQUIVALENT")).toBe(true);
+  });
+
+  it("compares EPSS score and percentile numerically rather than by JSON primitive type", () => {
+    const node = snapshot("NODE", "FIRST_EPSS", { cve: "CVE-2026-5000", score: "0.125000", percentile: "0.9000", scoreDate: "2026-08-12" }, { sourceClass: "EXPLOIT_PROBABILITY", observationBasis: "SCORED" });
+    const citem = snapshot("CITEM", "FIRST_EPSS", { cve: "CVE-2026-5000", score: 0.125, percentile: 0.9, scoreDate: "2026-08-12" }, { sourceClass: "EXPLOIT_PROBABILITY", observationBasis: "SCORED" });
+    expect(compareParitySnapshots(node, citem).accepted).toBe(true);
+  });
+
+  it("compares MalwareBazaar source tags without treating provider array order as meaning", () => {
+    const common = {
+      sha256: "a".repeat(64), sha1: "b".repeat(40), md5: "c".repeat(32), firstSeen: "2026-08-12 12:00:00", lastSeen: null,
+      fileName: "x.exe", fileSize: 100, fileType: "exe", fileTypeMime: "application/x-dosexec", signature: "Fixture", reporter: "reporter",
+    };
+    const node = snapshot("NODE", "MALWAREBAZAAR", { ...common, tags: ["rat", "exe"] }, { sourceRecordId: "a".repeat(64), sourceClass: "MALWARE_SAMPLE_REPOSITORY", observationBasis: "PUBLISHED" });
+    const citem = snapshot("CITEM", "MALWAREBAZAAR", { ...common, tags: ["exe", "rat"] }, { sourceRecordId: "a".repeat(64), sourceClass: "MALWARE_SAMPLE_REPOSITORY", observationBasis: "PUBLISHED" });
+    expect(compareParitySnapshots(node, citem).accepted).toBe(true);
+  });
+
   it("requires live ThreatFox membership skew to be explicitly classified", () => {
     const node = snapshot("NODE", "THREATFOX", threatFoxFacts, { sourceRecordId: "42", upstreamSnapshotId: null });
     const citem = { ...snapshot("CITEM", "THREATFOX", threatFoxFacts, { sourceRecordId: "42", upstreamSnapshotId: null }), records: [] };
@@ -94,7 +119,7 @@ describe("NODE-2G neutral parity", () => {
     const citem = snapshot("CITEM", "CISA_KEV", cisaFacts, { sourceClass: "IOC_SHARING" });
     const result = compareParitySnapshots(node, citem);
     expect(result.accepted).toBe(false);
-    expect(result.differences.some((difference) => difference.kind === "SEMANTIC_MISMATCH")).toBe(true);
+    expect(result.differences.some((difference) => difference.kind === "SEMANTIC_MISMATCH" && difference.classification === "REGRESSION")).toBe(true);
   });
 
   it("blocks duplicate source identities inside a parity snapshot", () => {
