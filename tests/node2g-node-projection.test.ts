@@ -2,6 +2,19 @@ import type { Pool } from "pg";
 import { describe, expect, it, vi } from "vitest";
 import { exportNodeParitySnapshot } from "../src/node2g/node-projection.js";
 
+const sharedNvdCommonPayload = {
+  id: "CVE-2099-13001",
+  sourceIdentifier: "example@example.test",
+  published: "2099-01-01T00:00:00.000Z",
+  lastModified: "2099-01-02T00:00:00.000Z",
+  vulnStatus: "Analyzed",
+  descriptions: [{ lang: "en", value: "NVD diagnostic fixture." }],
+  metrics: {},
+  weaknesses: [],
+  references: [],
+  configurations: [],
+};
+
 describe("NODE-2G Node parity projection", () => {
   it("normalizes CISA human-readable display whitespace without changing raw evidence", async () => {
     const query = vi.fn()
@@ -41,6 +54,42 @@ describe("NODE-2G Node parity projection", () => {
     expect(snapshot.records[0]?.facts.cve).toBe("CVE-2026-1234");
     expect(snapshot.records[0]?.facts.dateAdded).toBe("2026-08-11");
     expect(snapshot.records[0]?.facts.dueDate).toBe("2026-09-01");
+  });
+
+  it("preserves NODE-2G critical source facts from the shared NVD common payload", async () => {
+    const query = vi.fn()
+      .mockResolvedValueOnce({
+        rows: [{
+          id: "source-nvd",
+          source_class: "VULNERABILITY_DATABASE",
+          observation_basis: "ENRICHED",
+        }],
+      })
+      .mockResolvedValueOnce({
+        rows: [{
+          source_record_id: sharedNvdCommonPayload.id,
+          payload: sharedNvdCommonPayload,
+          published_at: new Date(sharedNvdCommonPayload.published),
+          effective_at: new Date(sharedNvdCommonPayload.lastModified),
+          upstream_updated_at: new Date(sharedNvdCommonPayload.lastModified),
+        }],
+      });
+    const pool = { query } as unknown as Pool;
+
+    const snapshot = await exportNodeParitySnapshot(pool, "NVD_CVE", {
+      capturedAt: "2099-01-03T00:00:00.000Z",
+    });
+
+    expect(snapshot.records).toHaveLength(1);
+    expect(snapshot.records[0]).toMatchObject({
+      sourceRecordId: "CVE-2099-13001",
+      facts: {
+        cve: "CVE-2099-13001",
+        published: "2099-01-01T00:00:00.000Z",
+        lastModified: "2099-01-02T00:00:00.000Z",
+        vulnStatus: "Analyzed",
+      },
+    });
   });
 
   it("filters NVD parity records to one explicit last-modified window", async () => {
