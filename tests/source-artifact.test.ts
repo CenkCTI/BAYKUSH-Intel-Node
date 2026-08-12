@@ -51,6 +51,43 @@ describe("bounded source artifact transport", () => {
     expect(result.value).toBe("gzip-like-fixture");
   });
 
+  it("strips sensitive headers when an explicitly allowlisted redirect crosses hosts", async () => {
+    const observedHeaders: Headers[] = [];
+    const crossHostRules = [
+      { hostname: "source.example", path: /^\/current$/ },
+      { hostname: "cdn.example", path: /^\/dated$/ },
+    ];
+    const fetchImpl: typeof fetch = async (input, init) => {
+      observedHeaders.push(new Headers(init?.headers));
+      if (new URL(String(input)).hostname === "source.example") {
+        return new Response(null, { status: 302, headers: { location: "https://cdn.example/dated" } });
+      }
+      return new Response(Buffer.from("artifact"), { status: 200, headers: { "content-type": "application/octet-stream" } });
+    };
+
+    await fetchBoundedArtifact({
+      url: new URL("https://source.example/current"),
+      allowedEndpoints: crossHostRules,
+      maxCompressedBytes: 1024,
+      timeoutMs: 5_000,
+      headers: {
+        Authorization: "Bearer secret",
+        apiKey: "api-secret",
+        "Auth-Key": "auth-secret",
+        "x-trace-id": "keep-me",
+      },
+      fetchImpl,
+      consume: async ({ stream }) => collect(stream),
+    });
+
+    expect(observedHeaders).toHaveLength(2);
+    expect(observedHeaders[0]?.get("authorization")).toBe("Bearer secret");
+    expect(observedHeaders[1]?.get("authorization")).toBeNull();
+    expect(observedHeaders[1]?.get("apikey")).toBeNull();
+    expect(observedHeaders[1]?.get("auth-key")).toBeNull();
+    expect(observedHeaders[1]?.get("x-trace-id")).toBe("keep-me");
+  });
+
   it("rejects a redirect outside the explicit provider allowlist", async () => {
     await expect(fetchBoundedArtifact({
       url: new URL("https://epss.empiricalsecurity.com/epss_scores-current.csv.gz"),
