@@ -33,8 +33,15 @@ async function main(): Promise<void> {
 
   if (command === "export-node") {
     const sourceKey = productionSourceKeySchema.parse(process.argv[3]);
-    const upstreamSnapshotId = process.argv[4]?.trim() || null;
-    const snapshot = await exportNodeParitySnapshot(pool, sourceKey, { upstreamSnapshotId });
+    const rawSnapshotId = process.argv[4]?.trim();
+    const upstreamSnapshotId = rawSnapshotId && rawSnapshotId !== "-" ? rawSnapshotId : null;
+    const windowStart = process.argv[5]?.trim() || null;
+    const windowEnd = process.argv[6]?.trim() || null;
+    const snapshot = await exportNodeParitySnapshot(pool, sourceKey, {
+      upstreamSnapshotId,
+      windowStart,
+      windowEnd,
+    });
     process.stdout.write(`${JSON.stringify(snapshot, null, 2)}\n`);
     return;
   }
@@ -51,7 +58,7 @@ async function main(): Promise<void> {
   }
 
   throw new Error(
-    "Usage: node dist/cli/node2g.js status | export-node <SOURCE_KEY> [upstreamSnapshotId] | parity < payload.json",
+    "Usage: node dist/cli/node2g.js status | export-node <SOURCE_KEY> [upstreamSnapshotId|-] [windowStart] [windowEnd] | parity < payload.json",
   );
 }
 
