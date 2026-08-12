@@ -222,6 +222,23 @@ export function compareParitySnapshots(
   const citemRecords = uniqueRecordMap(citem, differences);
   const sameUpstreamSnapshot = node.upstreamSnapshotId !== null && node.upstreamSnapshotId === citem.upstreamSnapshotId;
 
+  if (sourceKey === "THREATFOX") {
+    const nodeBounded = node.window.start !== null && node.window.end !== null;
+    const citemBounded = citem.window.start !== null && citem.window.end !== null;
+    const sameWindow = nodeBounded && citemBounded && canonicalJson(node.window) === canonicalJson(citem.window);
+    if (!sameWindow) {
+      differences.push({
+        kind: "SEMANTIC_MISMATCH",
+        sourceRecordId: null,
+        field: "window",
+        nodeValue: node.window,
+        citemValue: citem.window,
+        classification: "REGRESSION",
+        reason: "ThreatFox live parity requires the same explicit provider first_seen window on Node and CITEM.",
+      });
+    }
+  }
+
   if (node.semantics.sourceClass !== citem.semantics.sourceClass) {
     differences.push({
       kind: "SEMANTIC_MISMATCH",
