@@ -4,107 +4,93 @@
 
 **Phase:** NODE-2 — Existing Production Sources  
 **Closing phase:** NODE-2G — Five-Source Shadow Parity & Acceptance  
-**Report state:** `PENDING_SHADOW_PARITY_AND_CUTOVER`  
+**Report state:** `PENDING_LIVE_RESTART_AND_CUTOVER`  
 **Collection authority cutover:** `NOT_YET_DECLARED`
 
-This document becomes the authoritative NODE-2 closure record after automated CI, live shadow parity, all-five live acceptance and operator-controlled legacy CİTEM collector cutover are complete.
+All five production-source live shadow parity gates are now accepted. The remaining NODE-2 closure work is deterministic resilience/security CI on the final head, one live Docker scheduler/worker/normalizer restart gate, the live worker credential-persistence/private-boundary audit, and the operator-controlled CİTEM collection-authority pause/rollback verification.
 
 ## Production source matrix
 
-| Source | Adapter | Source semantics | Individual automated acceptance | Individual live acceptance | Shadow parity | NODE-2G result |
-|---|---|---|---|---|---|---|
-| CISA KEV | implemented | `EXPLOITED_VULNERABILITY_CATALOG / PUBLISHED` | PASS | PASS | LIVE PASS; COMMON PENDING | PENDING |
-| NVD CVE | implemented | `VULNERABILITY_DATABASE / ENRICHED` | PASS | PASS | PENDING | PENDING |
-| FIRST EPSS | implemented | `EXPLOIT_PROBABILITY / SCORED` | PASS | PASS | LIVE PASS; COMMON PENDING | PENDING |
-| ThreatFox | implemented | `IOC_SHARING / REPORTED` | PASS | PASS | LIVE PASS; COMMON PASS | PASS |
-| MalwareBazaar | implemented | `MALWARE_SAMPLE_REPOSITORY / PUBLISHED` | PASS | PASS | AUTOMATED PREP IMPLEMENTED; LIVE PENDING | PENDING |
+| Source | Semantics | Automated source acceptance | Live Node | Live shadow parity | Result |
+|---|---|---:|---:|---:|---:|
+| CISA KEV | `EXPLOITED_VULNERABILITY_CATALOG / PUBLISHED` | PASS | PASS | PASS — 1665/1665 | PASS |
+| NVD CVE | `VULNERABILITY_DATABASE / ENRICHED` | PASS | PASS | PASS — 66/66 bounded | PASS |
+| FIRST EPSS | `EXPLOIT_PROBABILITY / SCORED` | PASS | PASS | PASS — 2500/2500 | PASS |
+| ThreatFox | `IOC_SHARING / REPORTED` | PASS | PASS | PASS — guarded classified | PASS |
+| MalwareBazaar | `MALWARE_SAMPLE_REPOSITORY / PUBLISHED` | PASS | PASS | PASS — 7/7 bounded | PASS |
+
+Across the final accepted live parity captures:
+
+```text
+REGRESSION             = 0
+UNCLASSIFIED           = 0
+blockingDifferences    = 0
+unexplainedDifferences = 0
+```
+
+ThreatFox retains only evidence-backed migration classifications (`UNSUPPORTED_LEGACY`, `INTENTIONAL_DIFFERENCE`, monotonic `TEMPORAL_SKEW`). NVD retains one accepted source-specific observation-basis equivalence (`ENRICHED` Node vs `PUBLISHED` legacy CİTEM) while the compared NVD source facts are exact.
 
 ## Automated NODE-2G gates
 
-The aggregate NODE-2G suite runs after NODE-2A through NODE-2F against the same PostgreSQL service.
+The aggregate suite runs after NODE-2A through NODE-2F against the same ephemeral PostgreSQL service.
+
+Already established:
 
 - [x] all five production adapters registered;
-- [x] all source definitions synchronized;
+- [x] source definitions synchronized;
 - [x] source admission/terms metadata complete;
-- [x] production sources remain disabled by default;
-- [x] each source has at least one successful PostgreSQL-backed acceptance run;
-- [x] each source has a durable checkpoint;
-- [x] each source has immutable raw evidence;
-- [x] each source has canonical evidence;
-- [x] mixed normalization queue drains to zero queued/running/failed;
-- [x] every canonical record retains raw provenance;
-- [x] no canonical/raw source identity mismatch;
-- [x] no normalization/raw source identity mismatch;
+- [x] production sources disabled by default;
+- [x] successful PostgreSQL-backed acceptance run and durable checkpoint per source;
+- [x] immutable raw evidence and canonical evidence per source;
+- [x] canonical -> raw and normalization -> raw provenance consistency;
 - [x] no duplicate active scheduled/bootstrap run per source;
-- [x] CISA/EPSS/ThreatFox/MalwareBazaar provenance manifests normalize to zero canonical intelligence records;
-- [x] NVD-mirrored CISA fields do not become independent CISA corroboration;
-- [x] source normalization manufactures no attack-count, victim-count, business-risk, remediation-priority, attacker-origin, target-country or global-threat-level facts;
-- [x] lint/typecheck/unit tests/migrations/NODE-1/NODE-2A–2G/build/container build pass on the accepted pre-MalwareBazaar-prep head;
-- [ ] latest MalwareBazaar parity-hardening head and companion CİTEM PR validation both green.
+- [x] provenance manifests normalize to zero canonical intelligence;
+- [x] NVD-mirrored CISA material does not become independent CISA corroboration;
+- [x] normalizers do not manufacture attack/victim/risk/priority/origin/target-country/global-threat-level facts;
+- [x] parity projection/unit coverage including bounded ThreatFox/MalwareBazaar/NVD behavior;
+- [x] parity exporter `capturedAt` as-of revision cutoff covered by tests;
+- [x] pre-resilience final head before the new gate had green GitHub Actions.
 
-## Shadow parity gates
+Final-head additions now implemented and awaiting final CI confirmation:
 
-### Common-payload parity
+- [ ] deterministic provider-failure isolation acceptance;
+- [ ] checkpoint non-advancement on failed source work;
+- [ ] exponential retry/backoff / hot-loop prevention acceptance;
+- [ ] normalization-failure raw-evidence preservation acceptance;
+- [ ] expired worker lease recovery acceptance;
+- [ ] expired normalizer lease recovery acceptance;
+- [ ] scheduler duplicate-run suppression acceptance;
+- [ ] final DB invariant audit;
+- [ ] provider credential worker-only compose scope audit;
+- [ ] Node private-CİTEM runtime dependency audit.
 
-- [ ] CISA KEV — zero regressions;
-- [x] NVD CVE — deterministic critical-fact common-payload projection covered;
-- [ ] FIRST EPSS — zero regressions;
-- [x] ThreatFox — deterministic shared-provider critical-fact projection covered on both sides;
-- [ ] MalwareBazaar — implementation added on both sides; awaiting final companion CI confirmation.
+See `docs/NODE_2G_RESILIENCE_AND_CUTOVER.md`.
 
-### Live shadow parity
+## Live shadow parity evidence
 
-Every unmatched record must be classified under `docs/NODE_2_DIFFERENCE_REGISTER.md` or explicit parity evidence.
+### CISA KEV — PASS
 
-- [x] CISA KEV accepted;
-- [ ] NVD CVE accepted;
-- [x] FIRST EPSS accepted;
-- [x] ThreatFox accepted;
-- [ ] MalwareBazaar accepted;
-- [ ] unexplained critical mismatches = 0 across all five sources;
-- [ ] unclassified differences = 0 across all five sources.
-
-### CISA KEV live parity evidence
-
-Operator run on 2026-08-12 after legacy CİTEM CISA KEV was synchronized to catalog `2026.08.11` and Node was already on the same upstream catalog:
+Accepted same upstream catalog:
 
 ```text
-sourceKey             = CISA_KEV
-upstreamSnapshotId    = CISA:2026.08.11
-nodeRecords           = 1665
-citemRecords          = 1665
-intersection          = 1665
-nodeOnly              = 0
-citemOnly             = 0
-sameUpstreamSnapshot  = true
-blockingDifferences   = 0
-unexplainedDifferences= 0
-accepted              = true
+sourceKey              = CISA_KEV
+upstreamSnapshotId     = CISA:2026.08.11
+nodeRecords            = 1665
+citemRecords           = 1665
+intersection           = 1665
+nodeOnly               = 0
+citemOnly               = 0
+sameUpstreamSnapshot   = true
+blockingDifferences    = 0
+unexplainedDifferences = 0
+accepted               = true
 ```
 
-The first comparison exposed 19 presentation-only `vendor`/`product` differences caused exclusively by leading/trailing or Unicode whitespace in the provider strings. No source identity or semantic fact was lost. NODE-2G was narrowed so only CISA human-readable `vendor`/`product` parity comparison treats Unicode presentation whitespace as equivalent; raw provider evidence remains unchanged and CVE/date/ransomware fields remain strict.
+The initial comparison exposed 19 presentation-only vendor/product differences caused by provider whitespace. The parity projection narrows equivalence only for those human-readable presentation fields; raw provider evidence remains unchanged.
 
-**CISA KEV live shadow parity: PASS.**
+### FIRST EPSS — PASS
 
-### FIRST EPSS live parity evidence
-
-Operator acceptance on 2026-08-12 used the same score-date snapshot identity `EPSS:2026-08-12` on Node and CİTEM.
-
-Initial parity exposed a real legacy selection defect rather than a mapper mismatch: both sides emitted 2,500 records but intersected on only 552 CVEs. Node's selected population had minimum EPSS about `0.69564`; legacy CİTEM extended down to about `0.1002`, while the highest-scoring records matched. The CİTEM REST request was corrected to use the EPSS endpoint's top-score ordering contract.
-
-The corrected CİTEM collection then processed 2,500 rows and durably created exactly 1,948 previously absent signals, matching the earlier membership delta. A transient experimental cursor-field change caused that first corrected run to fail only at final cursor completion; the cursor extension was removed without a database migration. The subsequent manual CİTEM FIRST EPSS run completed:
-
-```text
-status          = SUCCEEDED
-trigger         = MANUAL
-records mapped  = 2500
-signals created = 0
-error           = none
-```
-
-Because CİTEM Technical Signal observations are append-only, the superseded pre-fix same-date members remain preserved as historical provenance. NODE-2G does not delete those observations. Instead, the CİTEM acceptance projection reconstructs the current bounded population deterministically by EPSS descending, percentile descending, CVE ascending, then selects the first 2,500. This projection-only behavior is documented as `D-EPSS-004`.
-
-Final canonical parity:
+Accepted score-date snapshot:
 
 ```text
 sourceKey              = FIRST_EPSS
@@ -113,21 +99,17 @@ nodeRecords            = 2500
 citemRecords           = 2500
 intersection           = 2500
 nodeOnly               = 0
-citemOnly              = 0
-sameUpstreamSnapshot   = true
+citemOnly               = 0
 blockingDifferences    = 0
 unexplainedDifferences = 0
 accepted               = true
-differences            = []
 ```
 
-**FIRST EPSS live shadow parity: PASS.**
+The acceptance process found and corrected the legacy CİTEM top-score selection defect. Historical pre-fix observations remain preserved; the acceptance projection reconstructs the current bounded population without deleting provenance.
 
-### ThreatFox live parity evidence
+### ThreatFox — PASS
 
-Operator acceptance on 2026-08-12 used `upstreamSnapshotId = null` and identical explicit provider `first_seen` boundaries on the Node and CİTEM parity exports.
-
-Final classified parity:
+Final guarded classified parity:
 
 ```text
 sourceKey               = THREATFOX
@@ -145,98 +127,173 @@ UNSUPPORTED_LEGACY      = 270
 TEMPORAL_SKEW           = 11
 ```
 
-Evidence classification:
+Evidence:
 
-- 270 Node-only records were provider hash IOC types (`sha256_hash`, `sha1_hash`, `md5_hash`) preserved by Node but outside the frozen legacy CİTEM ThreatFox TechINT mapper. These are `UNSUPPORTED_LEGACY`.
-- 49 Node-only records were supported `domain`, `ip:port` or `url` reports whose provider IDs were already behind the legacy CİTEM provider-ID high-water while Node adaptive recovery retained them. These are `INTENTIONAL_DIFFERENCE` under the frozen recovery-model difference.
-- all 11 intersecting critical-fact mismatches were `lastSeen`; every value advanced monotonically on the later capture. The comparator now classifies only capture-order-consistent monotonic `lastSeen` evolution as `TEMPORAL_SKEW`; backwards movement remains a regression.
+- 270 Node-only hash IOC reports are outside the frozen legacy CİTEM ThreatFox mapper;
+- 49 Node-only supported records are explained by Node adaptive recovery vs legacy provider-ID high-water behavior;
+- all 11 intersecting differences were capture-order-consistent monotonic `lastSeen` advancement;
+- no source identity, firstSeen, indicator value/type, malware-family or confidence regression remained.
 
-No source identity, `firstSeen`, indicator value/type, malware-family label or provider-confidence regression remained.
+### MalwareBazaar — PASS
 
-**ThreatFox live shadow parity: PASS.**
-
-### MalwareBazaar parity preparation
-
-The source-specific acceptance contract is frozen in `docs/NODE_2G_MALWAREBAZAAR_PARITY.md` before the live comparison.
-
-Implemented preparation:
-
-- parity identity = lowercase provider SHA-256;
-- live `upstreamSnapshotId = null`;
-- Node exporter requires explicit provider `first_seen` boundaries and filters `raw_source_records.effective_at`;
-- companion CİTEM exporter requires the same explicit boundaries and filters `technical_signal_observations.source_published_at`;
-- the comparator rejects missing/unbounded/mismatched MalwareBazaar scopes as `REGRESSION`;
-- deterministic Node/CİTEM fixture coverage freezes SHA-256, SHA-1, MD5, `firstSeen`, `lastSeen`, file name/size/type/MIME, signature, reporter and tags;
-- tags compare order-insensitively;
-- moving-source `lastSeen` may be `TEMPORAL_SKEW` only when capture ordering supports monotonic source evolution, including null-to-datetime advancement;
-- a later capture moving `lastSeen` backwards remains `REGRESSION`;
-- Node raw query manifests remain excluded from parity membership;
-- no cursor reset, history deletion, selector rewrite, credential migration or malware binary download was introduced.
-
-Live acceptance remains pending. Count equality is not an acceptance requirement because Node uses the admitted recent-time model while frozen legacy CİTEM uses `selector=100` plus `lastFirstSeen` high-water.
-
-## All-five live Node acceptance
-
-**Operator observation:** 2026-08-12 15:52 CEST / 13:52 UTC. All five production sources were simultaneously enabled on the NODE-2G branch and allowed to complete their scheduled live-incremental work.
-
-| Source | Latest run | Health | Checkpoint | Normalization failed | Coverage/recovery note |
-|---|---|---|---|---|---|
-| CISA KEV | `SUCCEEDED / SCHEDULED / LIVE_INCREMENTAL` at 13:48:42Z | `HEALTHY` | revision 2; catalog `2026.08.11`, 1665 entries | 0 | official GitHub mirror retrieval; current snapshot complete |
-| NVD CVE | `SUCCEEDED / SCHEDULED / LIVE_INCREMENTAL` at 13:49:09Z | `HEALTHY` | revision 4; completedThrough `2026-08-12T13:48:46.712Z` | 0 | historical-query watermark advanced successfully |
-| FIRST EPSS | `SUCCEEDED / SCHEDULED / LIVE_INCREMENTAL` at 13:49:12Z | `HEALTHY` | revision 3; dataset date `2026-08-12`, model `v2026.06.15` | 0 | current daily dataset collected successfully |
-| ThreatFox | `SUCCEEDED / SCHEDULED / LIVE_INCREMENTAL` at 13:49:13Z | `HEALTHY` | revision 2; 1-day recovery window, 780 records | 0 | `recoveryGapExceeded=false` |
-| MalwareBazaar | `SUCCEEDED / SCHEDULED / LIVE_INCREMENTAL` at 13:49:14Z | `HEALTHY` | revision 2; 60-minute window, 14 records | 0 | `recoveryGapExceeded=false` |
-
-Observed aggregate result across every per-source status:
+Final frozen provider `first_seen` window:
 
 ```text
-normalization queued  = 0
-normalization running = 0
-normalization failed  = 0
+windowStart            = 2026-08-12T21:08:55.148Z
+windowEnd              = 2026-08-12T21:38:55.148Z
+upstreamSnapshotId     = null
+nodeRecords            = 7
+citemRecords           = 7
+intersection           = 7
+nodeOnly               = 0
+citemOnly               = 0
+blockingDifferences    = 0
+unexplainedDifferences = 0
+accepted               = true
+differences            = []
 ```
 
-**All-five live Node acceptance: PASS.**
+Node was healthy with `recoveryGapExceeded=false` and zero queued/running/failed normalization work. CİTEM live collection succeeded after the server-side MalwareBazaar credential was corrected in the Vercel environment; no credential value entered parity artifacts.
 
-A source may be operationally `HEALTHY` while retaining a historical recovery gap. Current health must not overwrite coverage-gap state.
+#### Acceptance-tooling defect discovered and fixed
 
-## Failure isolation evidence
+An earlier frozen comparison exposed a real exporter defect: Node selected the latest retained raw revision even when that revision had arrived after the intended frozen capture. The provider had advanced a MalwareBazaar signature after the capture, creating a false historical mismatch.
 
-- [ ] one controlled provider failure does not stop unrelated sources;
-- [ ] failed source work does not advance that source checkpoint;
-- [ ] retry/backoff does not create a hot loop;
-- [ ] normalization failure preserves raw evidence;
-- [ ] scheduler/worker/normalizer process restart does not create duplicate canonical evidence or duplicate active scheduled runs.
+The Node projection now normalizes `capturedAt` and requires:
 
-Long-running host/DB failover soak, backup restore and Oracle reboot acceptance remain NODE-8.
+```text
+received_at <= capturedAt
+created_at  <= capturedAt
+```
 
-## Security/provenance evidence
+before choosing the latest raw revision per source identity. Unit coverage verifies the cutoff. Runtime and npm parity export interfaces now accept an optional explicit `capturedAt` so the fix is operationally usable, not only programmatic.
 
-- [x] provider credentials remain server-side in automated source acceptance;
-- [x] credentials absent from source request URLs in automated acceptance;
-- [x] credentials absent from persisted raw evidence in authenticated-source acceptance;
-- [x] credentials absent from canonical evidence in authenticated-source acceptance;
-- [x] credentials absent from authenticated-source checkpoints/work descriptors/manifests in automated acceptance;
-- [x] persisted source failures use controlled/redacted diagnostics in source acceptance suites;
-- [x] every canonical record traces to immutable raw evidence and source definition in NODE-2G aggregate acceptance;
-- [ ] no private CİTEM workspace data is sent to Node — to be confirmed during collection-authority cutover/integration boundary review.
+### NVD CVE — PASS
+
+Legacy CİTEM could not complete the current multi-day catch-up because its frozen run ceiling rejected windows over 2,000 records. Existing Node and CİTEM databases also had non-overlapping historical `lastModified` coverage, so a DB-only historical comparison would have been invalid.
+
+Acceptance therefore used one pre-declared one-minute live NVD `lastModified` window already present on Node and passed the same window through the real CİTEM NVD adapter/mapper read-only, without modifying the production CİTEM cursor.
+
+Frozen window:
+
+```text
+windowStart            = 2026-08-12T21:17:00.000Z
+windowEnd              = 2026-08-12T21:18:00.000Z
+recordsSeen            = 66
+recordsMapped          = 66
+mappingIssues          = 0
+nodeRecords            = 66
+citemRecords           = 66
+intersection           = 66
+nodeOnly               = 0
+citemOnly               = 0
+blockingDifferences    = 0
+unexplainedDifferences = 0
+accepted               = true
+```
+
+Comparator evidence retained one explicit source-semantic equivalence:
+
+```text
+field          = observationBasis
+Node           = ENRICHED
+legacy CİTEM   = PUBLISHED
+classification = SEMANTICALLY_EQUIVALENT
+```
+
+Critical NVD facts (`cve`, `published`, `lastModified`, `vulnStatus`) matched across all 66 intersecting records.
+
+## All-five live Node acceptance — PASS
+
+All five production sources have been simultaneously enabled on the Node and observed `HEALTHY` with successful scheduled live-incremental runs and zero normalization failures. ThreatFox and MalwareBazaar recovery state remained within admitted recovery windows.
+
+The final live restart gate will re-check these states after sequential scheduler/worker/normalizer restarts.
+
+## Failure isolation / resilience
+
+Runtime design already provides:
+
+- scheduler suppression of a second active source run;
+- idempotency key on scheduled/bootstrap run creation;
+- worker/work-unit leases with expired-lease reclaim;
+- normalizer leases with expired-lease reclaim;
+- raw revision conflict identity `(source_definition_id, source_record_id, payload_sha256)`;
+- normalization job identity `(raw_record_id, normalization_version)`;
+- canonical identity `(raw_record_id, normalization_version, canonical_key, record_kind)`;
+- raw/checkpoint/job/run successful persistence inside one transaction;
+- exponential retry delay with configured maximum and provider Retry-After floor.
+
+Final deterministic CI implementation is in `scripts/test-node2g-resilience.ts`. It injects a process-local controlled CISA provider failure and a controlled synthetic normalization failure without calling live providers or changing production adapters.
+
+Operator live gate:
+
+```text
+scripts/node2g-live-restart-gate.sh
+```
+
+Pending live evidence:
+
+- [ ] scheduler restart heartbeat and invariants accepted;
+- [ ] worker restart heartbeat and invariants accepted;
+- [ ] normalizer restart heartbeat and invariants accepted;
+- [ ] post-restart five-source status accepted;
+- [ ] post-restart final DB audit accepted.
+
+PostgreSQL/host failover, backup restore and Oracle reboot remain NODE-8.
+
+## Security / provenance
+
+Already established by source acceptance suites:
+
+- [x] credentials remain server-side;
+- [x] request URLs do not contain provider credentials;
+- [x] raw/canonical/checkpoint/work descriptors do not persist credentials in authenticated-source acceptance;
+- [x] controlled/redacted source failure diagnostics;
+- [x] every canonical record traces to immutable raw evidence/source definition.
+
+Final hardening on this head:
+
+- provider secrets removed from the shared Docker environment;
+- `NVD_API_KEY`, `THREATFOX_AUTH_KEY`, `MALWAREBAZAAR_AUTH_KEY` are injected only into `worker`;
+- runtime CLI `security-audit` can scan actual configured worker secrets against persisted evidence/checkpoint/work/failure state;
+- `SUPABASE_SERVICE_ROLE_KEY` and `NEXT_PUBLIC_SUPABASE_URL` are forbidden from Node runtime environment;
+- CI static audit rejects private CİTEM/Supabase runtime dependencies in Node source/config.
+
+Pending live evidence:
+
+- [ ] real worker credential persistence scan = zero occurrences;
+- [ ] private CİTEM runtime credentials absent from Node containers.
 
 ## Collection-authority cutover
 
-After all gates above pass:
+Companion CİTEM PR #48 now contains a guarded operator tool and runbook for collection-authority cutover.
 
-- [ ] BAYKUSH Intelligence Node declared collection authority for the five production public/global sources;
-- [ ] legacy CİTEM CISA KEV collector paused;
-- [ ] legacy CİTEM NVD collector paused;
-- [ ] legacy CİTEM FIRST EPSS collector paused;
-- [ ] legacy CİTEM ThreatFox collector paused;
-- [ ] legacy CİTEM MalwareBazaar collector paused;
-- [ ] legacy CİTEM source history preserved;
-- [ ] legacy CİTEM source cursors preserved;
-- [ ] legacy CİTEM credentials/history not destructively migrated;
-- [ ] manual rollback procedure verified/documented;
-- [ ] no automatic dual-authority fallback enabled.
+Required final sequence:
 
-CİTEM Node API consumption is **not** part of NODE-2G; it begins in NODE-4.
+- [ ] CİTEM dry-run resolves all five connections;
+- [ ] zero active CİTEM `RUNNING` collections confirmed;
+- [ ] local mode-0600 pre-cutover snapshot written outside Git;
+- [ ] cursor version/SHA and run-history counts recorded;
+- [ ] CISA KEV connection paused;
+- [ ] NVD CVE connection paused;
+- [ ] FIRST EPSS connection paused;
+- [ ] ThreatFox connection paused;
+- [ ] MalwareBazaar connection paused;
+- [ ] every cursor hash unchanged after pause;
+- [ ] every legacy run-history count unchanged after pause;
+- [ ] Node five-source health/final audit re-confirmed;
+- [ ] manual rollback procedure accepted;
+- [ ] no automatic dual-authority failback enabled.
+
+Cutover means `ENABLED -> PAUSED`, never archive/delete/reset. Legacy CİTEM cursor/history and credentials remain preserved. CİTEM Node API consumption begins in NODE-4, not NODE-2.
+
+Rollback order is source-specific and manual:
+
+```text
+Node source disable -> Node active work drain -> CİTEM source resume -> first CİTEM run verify -> authority record update
+```
+
+Automatic failback from Node to CİTEM is prohibited.
 
 ## Epistemic invariants retained
 
@@ -254,23 +311,23 @@ CİTEM Node API consumption is **not** part of NODE-2G; it begins in NODE-4.
 
 ## Known limitations after NODE-2
 
-NODE-2 completion does not mean the full BAYKUSH Intelligence Node is complete. The following remain intentionally unimplemented:
+NODE-2 completion does not implement:
 
-- Node historical 5m/hour/day measurement backbone;
-- materialized Node coverage windows;
+- historical 5m/hour/day measurement backbone;
+- materialized coverage windows;
 - trend/distribution/change APIs;
-- cross-source convergence/corroboration logic;
-- CİTEM Node API consumption and Global View cutover;
+- cross-source convergence/corroboration;
+- CİTEM Node API consumption / Global View;
 - Internet telemetry;
 - geography/map inference;
-- new source packs;
-- Oracle production hardening/backups/observability;
+- additional providers;
+- Oracle/host production hardening, backup or failover;
 - ANLAK projection;
 - AI analytic judgement.
 
 ## Closure declaration
 
-When every required box is complete, replace the report state with:
+Do not apply this declaration until the remaining live restart/security/cutover checkboxes are accepted:
 
 ```text
 NODE-2: COMPLETE
