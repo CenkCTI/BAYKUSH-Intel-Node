@@ -19,6 +19,7 @@
     "test:node2c": "tsx scripts/test-node2c.ts",
     "test:node2d": "tsx scripts/test-node2d.ts",
     "test:node2e": "tsx scripts/test-node2e.ts",
+    "test:node2f": "tsx scripts/test-node2f.ts",
     "db:migrate": "node scripts/migrate.mjs",
     "dev:api": "tsx src/api/main.ts",
     "dev:scheduler": "tsx src/scheduler/main.ts",
