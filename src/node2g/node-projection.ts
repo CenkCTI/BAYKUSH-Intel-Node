@@ -21,6 +21,17 @@ function numberValue(value: unknown): number | null {
   return typeof value === "number" && Number.isFinite(value) ? value : null;
 }
 
+function sourceInstant(value: unknown): string | null {
+  const raw = text(value);
+  if (raw === null) return null;
+  const providerUtc = /^(\d{4})-(\d{2})-(\d{2}) (\d{2}):(\d{2}):(\d{2})(?: UTC)?$/i.exec(raw.trim());
+  const normalized = providerUtc
+    ? `${providerUtc[1]}-${providerUtc[2]}-${providerUtc[3]}T${providerUtc[4]}:${providerUtc[5]}:${providerUtc[6]}Z`
+    : raw;
+  const parsed = new Date(normalized);
+  return Number.isNaN(parsed.valueOf()) ? raw : parsed.toISOString();
+}
+
 function nodeFacts(sourceKey: ProductionSourceKey, payload: unknown): { subject: ParityRecord["subject"]; facts: Record<string, unknown> } {
   const root = object(payload);
   switch (sourceKey) {
@@ -44,8 +55,8 @@ function nodeFacts(sourceKey: ProductionSourceKey, payload: unknown): { subject:
         subject: { kind: "CVE", value: cve },
         facts: {
           cve,
-          published: text(root.published),
-          lastModified: text(root.lastModified),
+          published: sourceInstant(root.published),
+          lastModified: sourceInstant(root.lastModified),
           vulnStatus: text(root.vulnStatus),
         },
       };
@@ -71,9 +82,9 @@ function nodeFacts(sourceKey: ProductionSourceKey, payload: unknown): { subject:
           providerId,
           indicatorType: text(source.ioc_type),
           indicatorValue: text(source.ioc),
-          firstSeen: text(source.first_seen),
-          lastSeen: text(source.last_seen),
-          malwareFamily: text(source.malware) ?? text(source.malware_printable) ?? text(source.malware_malpedia),
+          firstSeen: sourceInstant(source.first_seen),
+          lastSeen: sourceInstant(source.last_seen),
+          malwareFamily: text(source.malware_printable) ?? text(source.malware) ?? text(source.malware_malpedia),
           providerConfidence: numberValue(source.confidence_level),
         },
       };
@@ -87,8 +98,8 @@ function nodeFacts(sourceKey: ProductionSourceKey, payload: unknown): { subject:
           sha256,
           sha1: text(source.sha1_hash)?.toLowerCase() ?? null,
           md5: text(source.md5_hash)?.toLowerCase() ?? null,
-          firstSeen: text(source.first_seen),
-          lastSeen: text(source.last_seen),
+          firstSeen: sourceInstant(source.first_seen),
+          lastSeen: sourceInstant(source.last_seen),
           fileName: text(source.file_name),
           fileSize: numberValue(source.file_size),
           fileType: text(source.file_type),
