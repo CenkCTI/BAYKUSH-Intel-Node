@@ -113,7 +113,7 @@ The canonical record identity belongs to the source report, not to the indicator
 
 ### Supported indicator mapping
 
-NODE-2E normalizes known source types conservatively:
+NODE-2E has conservative normalizers for the following source-type/value shapes when they are emitted:
 
 - `domain` -> `DOMAIN`
 - `url` -> `URL`
@@ -121,6 +121,8 @@ NODE-2E normalizes known source types conservatively:
 - `md5_hash` -> `HASH` key prefixed `md5:`
 - `sha1_hash` -> `HASH` key prefixed `sha1:`
 - `sha256_hash` -> `HASH` key prefixed `sha256:`
+
+The current ThreatFox Community API documentation explicitly demonstrates `domain`, `url`, and `ip:port` and exposes the provider `types` endpoint as the authoritative dynamic type catalog. The existence of a BAYKUSH defensive normalizer is not treated as proof that a type is currently emitted by `get_iocs`. Live acceptance records the actual returned `ioc_type` population without inventing source support.
 
 URL hostnames normalize while path/query case is preserved. IP service ports remain facts rather than being embedded in IP entity identity.
 
@@ -199,6 +201,8 @@ NODE-2E v1 uses:
 
 If the provider exceeds a hard bound, the run fails. NODE-2E never silently truncates a source response because silent truncation would falsely imply coverage.
 
+The manual seven-day bootstrap must confirm that the live Community API response fits both the 9,999-record and 32 MiB bounds. If it does not, the retrieval design must be revised rather than increasing coverage claims or silently dropping records.
+
 ## Licensing and source admission
 
 ThreatFox Community API usage is governed by abuse.ch fair-use and Terms of Use. NODE-2E records:
@@ -220,7 +224,7 @@ Network-independent tests cover:
 - source semantic contract;
 - adaptive recovery windows;
 - strict core/tolerant edge source validation;
-- six known indicator families;
+- normalizer support for domain, URL, ip:port, MD5, SHA1, and SHA256 value shapes;
 - URL case preservation;
 - unknown/invalid indicator fallback;
 - query-manifest zero normalization;
@@ -243,16 +247,18 @@ A real ThreatFox Auth-Key must be configured locally without sharing or printing
 
 1. disabled source state;
 2. key configured without revealing its value;
-3. isolated ThreatFox bootstrap;
-4. healthy source/run state;
-5. raw IOC + query-manifest counts;
-6. zero normalization failures;
-7. sample raw/canonical provenance;
-8. semantic boundary and time mapping;
-9. supported live IOC normalization;
-10. repeat-run dedup/revision behavior;
-11. source disabled after test;
-12. restoration of prior local source state.
+3. isolated ThreatFox seven-day bootstrap;
+4. bootstrap response stays within the explicit record/byte bounds with no truncation;
+5. healthy source/run state;
+6. raw IOC + query-manifest counts;
+7. zero normalization failures;
+8. actual live `ioc_type` population and any `UNMAPPED` values;
+9. sample raw/canonical provenance;
+10. semantic boundary and time mapping;
+11. supported live IOC normalization;
+12. repeat-run dedup/revision behavior;
+13. source disabled after test;
+14. restoration of prior local source state.
 
 ## Out of scope
 
