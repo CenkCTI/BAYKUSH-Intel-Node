@@ -24,9 +24,6 @@ services:
       WORKER_RETRY_MAX_SECONDS: ${WORKER_RETRY_MAX_SECONDS:-300}
       SOURCE_HTTP_TIMEOUT_MS: ${SOURCE_HTTP_TIMEOUT_MS:-30000}
       GLOBAL_MAX_RAW_RECORD_BYTES: ${GLOBAL_MAX_RAW_RECORD_BYTES:-8388608}
-      NVD_API_KEY: ${NVD_API_KEY:-}
-      THREATFOX_AUTH_KEY: ${THREATFOX_AUTH_KEY:-}
-      MALWAREBAZAAR_AUTH_KEY: ${MALWAREBAZAAR_AUTH_KEY:-}
     depends_on:
       postgres:
         condition: service_healthy
@@ -68,6 +65,9 @@ services:
     environment:
       <<: *node-env
       NODE_INSTANCE_ID: worker-1
+      NVD_API_KEY: ${NVD_API_KEY:-}
+      THREATFOX_AUTH_KEY: ${THREATFOX_AUTH_KEY:-}
+      MALWAREBAZAAR_AUTH_KEY: ${MALWAREBAZAAR_AUTH_KEY:-}
     depends_on:
       migrate:
         condition: service_completed_successfully
