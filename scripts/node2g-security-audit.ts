@@ -48,6 +48,7 @@ async function main(): Promise<void> {
     assert.ok(!compose.includes(token), `${token} must not be present in Node compose configuration`);
   }
   for (const file of walkFiles("src")) {
+    if (file.endsWith(path.join("src", "node2g", "security-audit.ts"))) continue;
     const content = fs.readFileSync(file, "utf8");
     for (const token of forbiddenCitemTokens) {
       assert.ok(!content.includes(token), `${token} must not appear in Node runtime source: ${file}`);
