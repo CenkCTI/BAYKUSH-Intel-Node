@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import { Readable, Transform } from "node:stream";
+import { pipeline } from "node:stream/promises";
 import { createGunzip } from "node:zlib";
 import { parse } from "csv-parse";
 import { z } from "zod";
@@ -319,20 +320,22 @@ export async function parseFirstEpssArtifact(input: {
   let qualifiedRows = 0;
   let headerValidated = false;
 
-  try {
-    const parser = Readable.from(input.stream)
-      .pipe(createGzipMagicGuard())
-      .pipe(createGunzip())
-      .pipe(createDatasetTap(datasetState))
-      .pipe(parse({
-        bom: true,
-        columns: true,
-        comment: "#",
-        skip_empty_lines: true,
-        trim: true,
-        max_record_size: MAX_CSV_RECORD_BYTES,
-      }));
+  const source = Readable.from(input.stream);
+  const magicGuard = createGzipMagicGuard();
+  const gunzip = createGunzip();
+  const datasetTap = createDatasetTap(datasetState);
+  const parser = parse({
+    bom: true,
+    columns: true,
+    comment: "#",
+    skip_empty_lines: true,
+    trim: true,
+    max_record_size: MAX_CSV_RECORD_BYTES,
+  });
+  const pump = pipeline(source, magicGuard, gunzip, datasetTap, parser);
+  void pump.catch(() => {});
 
+  try {
     for await (const unknownRow of parser) {
       if (!unknownRow || typeof unknownRow !== "object" || Array.isArray(unknownRow)) {
         throw new CollectionFailure("SCHEMA_ERROR", "FIRST EPSS CSV emitted a non-object row", false);
@@ -381,7 +384,14 @@ export async function parseFirstEpssArtifact(input: {
         });
       }
     }
+    await pump;
   } catch (error) {
+    source.destroy();
+    magicGuard.destroy();
+    gunzip.destroy();
+    datasetTap.destroy();
+    parser.destroy();
+    try { await pump; } catch { /* original error is classified below */ }
     throw classifyParsingFailure(error);
   }
 
