@@ -1,4 +1,5 @@
 import { pool } from "../db/pool.js";
+import { collectNode2FinalAudit } from "../node2g/final-audit.js";
 import { exportNodeParitySnapshot } from "../node2g/node-projection.js";
 import {
   compareParitySnapshots,
@@ -6,6 +7,7 @@ import {
   type ManualParityClassification,
 } from "../node2g/parity.js";
 import { collectNode2Readiness } from "../node2g/readiness.js";
+import { collectNode2SecurityAudit } from "../node2g/security-audit.js";
 
 async function readStdinJson(): Promise<unknown> {
   const chunks: Buffer[] = [];
@@ -31,16 +33,32 @@ async function main(): Promise<void> {
     return;
   }
 
+  if (command === "final-audit") {
+    const report = await collectNode2FinalAudit(pool);
+    process.stdout.write(`${JSON.stringify(report, null, 2)}\n`);
+    if (!report.accepted) process.exitCode = 1;
+    return;
+  }
+
+  if (command === "security-audit") {
+    const report = await collectNode2SecurityAudit(pool);
+    process.stdout.write(`${JSON.stringify(report, null, 2)}\n`);
+    if (!report.accepted) process.exitCode = 1;
+    return;
+  }
+
   if (command === "export-node") {
     const sourceKey = productionSourceKeySchema.parse(process.argv[3]);
     const rawSnapshotId = process.argv[4]?.trim();
     const upstreamSnapshotId = rawSnapshotId && rawSnapshotId !== "-" ? rawSnapshotId : null;
     const windowStart = process.argv[5]?.trim() || null;
     const windowEnd = process.argv[6]?.trim() || null;
+    const capturedAt = process.argv[7]?.trim() || undefined;
     const snapshot = await exportNodeParitySnapshot(pool, sourceKey, {
       upstreamSnapshotId,
       windowStart,
       windowEnd,
+      ...(capturedAt ? { capturedAt } : {}),
     });
     process.stdout.write(`${JSON.stringify(snapshot, null, 2)}\n`);
     return;
@@ -58,7 +76,7 @@ async function main(): Promise<void> {
   }
 
   throw new Error(
-    "Usage: node dist/cli/node2g.js status | export-node <SOURCE_KEY> [upstreamSnapshotId|-] [windowStart] [windowEnd] | parity < payload.json",
+    "Usage: node dist/cli/node2g.js status | final-audit | security-audit | export-node <SOURCE_KEY> [upstreamSnapshotId|-] [windowStart] [windowEnd] [capturedAt] | parity < payload.json",
   );
 }
 
