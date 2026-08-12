@@ -13,7 +13,7 @@ This document becomes the authoritative NODE-2 closure record after automated CI
 
 | Source | Adapter | Source semantics | Individual automated acceptance | Individual live acceptance | Shadow parity | NODE-2G result |
 |---|---|---|---|---|---|---|
-| CISA KEV | implemented | `EXPLOITED_VULNERABILITY_CATALOG / PUBLISHED` | PASS | PASS | PENDING | PENDING |
+| CISA KEV | implemented | `EXPLOITED_VULNERABILITY_CATALOG / PUBLISHED` | PASS | PASS | LIVE PASS; COMMON PENDING | PENDING |
 | NVD CVE | implemented | `VULNERABILITY_DATABASE / ENRICHED` | PASS | PASS | PENDING | PENDING |
 | FIRST EPSS | implemented | `EXPLOIT_PROBABILITY / SCORED` | PASS | PASS | PENDING | PENDING |
 | ThreatFox | implemented | `IOC_SHARING / REPORTED` | PASS | PASS | PENDING | PENDING |
@@ -55,13 +55,35 @@ GitHub Actions `NODE validation` run #45 on head `990c501f8c7b92d081e12ae78e0c10
 
 Every unmatched record must be classified under `docs/NODE_2_DIFFERENCE_REGISTER.md` or explicit parity evidence.
 
-- [ ] CISA KEV accepted;
+- [x] CISA KEV accepted;
 - [ ] NVD CVE accepted;
 - [ ] FIRST EPSS accepted;
 - [ ] ThreatFox accepted;
 - [ ] MalwareBazaar accepted;
 - [ ] unexplained critical mismatches = 0;
 - [ ] unclassified differences = 0.
+
+### CISA KEV live parity evidence
+
+Operator run on 2026-08-12 after legacy CİTEM CISA KEV was synchronized to catalog `2026.08.11` and Node was already on the same upstream catalog:
+
+```text
+sourceKey             = CISA_KEV
+upstreamSnapshotId    = CISA:2026.08.11
+nodeRecords           = 1665
+citemRecords          = 1665
+intersection          = 1665
+nodeOnly              = 0
+citemOnly             = 0
+sameUpstreamSnapshot  = true
+blockingDifferences   = 0
+unexplainedDifferences= 0
+accepted              = true
+```
+
+The first comparison exposed 19 presentation-only `vendor`/`product` differences caused exclusively by leading/trailing or Unicode whitespace in the provider strings (for example `"Array Networks "` vs `"Array Networks"`). No source identity or semantic fact was lost. NODE-2G was narrowed so only CISA human-readable `vendor`/`product` parity comparison treats Unicode presentation whitespace as equivalent; raw provider evidence remains unchanged and CVE/date/ransomware fields remain strict. A regression test was added before the accepted rerun.
+
+**CISA KEV live shadow parity: PASS.**
 
 ## All-five live Node acceptance
 
