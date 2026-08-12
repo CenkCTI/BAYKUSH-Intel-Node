@@ -205,7 +205,7 @@ async function main(): Promise<void> {
   );
   assert.equal(unsafeFacts.rows[0]?.count, 0, "ThreatFox normalization must not manufacture attacks, risk, priority, or independent corroboration");
 
-  const ipRecord = await pool.query<{ entities: unknown; facts: unknown; published_at: Date | null; effective_at: Date | null; upstream_updated_at: Date | null }>(
+  const ipRecord = await pool.query<{ entities: unknown; facts: Array<{ predicate: string; value: unknown }>; published_at: Date | null; effective_at: Date | null; upstream_updated_at: Date | null }>(
     `SELECT entities, facts, published_at, effective_at, upstream_updated_at
      FROM canonical_evidence_records
      WHERE source_definition_id = $1 AND source_record_id = '1003'
@@ -218,7 +218,7 @@ async function main(): Promise<void> {
     { kind: "IP", key: "192.0.2.10", label: "192.0.2.10" },
     { kind: "MALWARE", key: "malpedia:win.cobalt_strike", label: "Cobalt Strike" },
   ]);
-  assert.ok(JSON.stringify(ip.facts).includes('"predicate":"threatfox.port","value":8443'));
+  assert.ok(ip.facts.some((fact) => fact.predicate === "threatfox.port" && fact.value === 8443));
   assert.equal(ip.published_at, null);
   assert.equal(ip.upstream_updated_at, null);
   assert.equal(ip.effective_at?.toISOString(), "2026-08-12T08:00:00.000Z");
