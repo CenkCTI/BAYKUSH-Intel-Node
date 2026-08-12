@@ -182,6 +182,13 @@ export async function exportNodeParitySnapshot(
   const definition = source.rows[0];
   if (!definition) throw new Error(`${sourceKey} source definition is not synchronized`);
 
+  const capturedAtRaw = options.capturedAt ?? new Date().toISOString();
+  const capturedAtMs = Date.parse(capturedAtRaw);
+  if (!Number.isFinite(capturedAtMs)) {
+    throw new Error("Parity export capturedAt must be a valid datetime");
+  }
+  const capturedAt = new Date(capturedAtMs).toISOString();
+
   const window = parityWindow(sourceKey, options.windowStart, options.windowEnd);
   const windowColumn = window ? parityWindowColumn(sourceKey) : null;
   const raw = await pool.query<RawRevisionRow>(
@@ -190,11 +197,13 @@ export async function exportNodeParitySnapshot(
        FROM raw_source_records
       WHERE source_definition_id = $1
         AND NOT (source_record_id = ANY($2::text[]))
-        ${windowColumn ? `AND ${windowColumn} >= $3::timestamptz AND ${windowColumn} <= $4::timestamptz` : ""}
+        AND received_at <= $3::timestamptz
+        AND created_at <= $3::timestamptz
+        ${windowColumn ? `AND ${windowColumn} >= $4::timestamptz AND ${windowColumn} <= $5::timestamptz` : ""}
       ORDER BY source_record_id, received_at DESC, created_at DESC`,
     window
-      ? [definition.id, [...excludedRecordIds[sourceKey]], window.start, window.end]
-      : [definition.id, [...excludedRecordIds[sourceKey]]],
+      ? [definition.id, [...excludedRecordIds[sourceKey]], capturedAt, window.start, window.end]
+      : [definition.id, [...excludedRecordIds[sourceKey]], capturedAt],
   );
 
   const records: ParityRecord[] = raw.rows.map((row) => {
@@ -215,7 +224,7 @@ export async function exportNodeParitySnapshot(
     schemaVersion: NODE2G_PARITY_SCHEMA_VERSION,
     producer: "NODE",
     sourceKey,
-    capturedAt: options.capturedAt ?? new Date().toISOString(),
+    capturedAt,
     upstreamSnapshotId: options.upstreamSnapshotId ?? null,
     window: window ?? { start: null, end: null },
     semantics: {
