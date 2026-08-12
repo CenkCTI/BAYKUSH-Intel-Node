@@ -14,6 +14,8 @@ interface ParityWindow {
   end: string;
 }
 
+const requiredBoundedSources = new Set<ProductionSourceKey>(["THREATFOX", "MALWAREBAZAAR"]);
+
 function object(value: unknown): Record<string, unknown> {
   return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
 }
@@ -44,14 +46,14 @@ function sourceInstant(value: unknown): string | null {
 
 function parityWindow(sourceKey: ProductionSourceKey, start?: string | null, end?: string | null): ParityWindow | null {
   if (!start && !end) {
-    if (sourceKey === "THREATFOX") {
-      throw new Error("THREATFOX parity export requires an explicit provider first_seen window");
+    if (requiredBoundedSources.has(sourceKey)) {
+      throw new Error(`${sourceKey} parity export requires an explicit provider first_seen window`);
     }
     return null;
   }
   if (!start || !end) throw new Error("Parity export requires both windowStart and windowEnd");
-  if (sourceKey !== "NVD_CVE" && sourceKey !== "THREATFOX") {
-    throw new Error("Explicit parity windows are currently supported only for NVD_CVE and THREATFOX");
+  if (sourceKey !== "NVD_CVE" && !requiredBoundedSources.has(sourceKey)) {
+    throw new Error("Explicit parity windows are currently supported only for NVD_CVE, THREATFOX and MALWAREBAZAAR");
   }
   const startMs = Date.parse(start);
   const endMs = Date.parse(end);
@@ -62,7 +64,7 @@ function parityWindow(sourceKey: ProductionSourceKey, start?: string | null, end
 
 function parityWindowColumn(sourceKey: ProductionSourceKey): "upstream_updated_at" | "effective_at" {
   if (sourceKey === "NVD_CVE") return "upstream_updated_at";
-  if (sourceKey === "THREATFOX") return "effective_at";
+  if (sourceKey === "THREATFOX" || sourceKey === "MALWAREBAZAAR") return "effective_at";
   throw new Error(`No explicit parity-window column is defined for ${sourceKey}`);
 }
 
