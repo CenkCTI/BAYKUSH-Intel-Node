@@ -72,6 +72,8 @@ NODE-2G exporters intentionally use those source-native columns for explicit Thr
 
 This must not be replaced by `received_at`, `created_at`, Node checkpoint time, CİTEM observation creation time, or `last_seen`.
 
+ThreatFox exports fail closed if the operator omits either window boundary. The Node comparator also rejects the comparison as `REGRESSION` unless both producers carry the same explicit normalized window. This prevents an unbounded retained-history export or two differently scoped populations from being mistaken for valid live parity.
+
 ## Stable interior window
 
 The two live provider requests are not expected to complete at the same instant. To prevent records arriving between the requests from being misclassified as regressions, acceptance uses a stable interior window.
@@ -124,7 +126,7 @@ CİTEM:
 npm run node2g:shadow-export -- THREATFOX - "$WINDOW_START" "$WINDOW_END" > /tmp/citem-threatfox.json
 ```
 
-Both snapshots must report the same normalized window boundaries.
+Both snapshots must report the same normalized window boundaries. Calling either ThreatFox exporter without an explicit window is intentionally rejected.
 
 ## Pre-comparison diagnostics
 
@@ -201,6 +203,8 @@ ThreatFox is accepted only when all of the following are true:
 - provider credentials are absent from parity artifacts and persisted evidence;
 - common-payload critical-fact tests are green on both repositories;
 - explicit windows on both exporters use provider `first_seen` semantics;
+- both exporters reject unbounded ThreatFox parity exports;
+- the comparator rejects missing or mismatched ThreatFox windows;
 - a stable guarded 24-hour live window has been captured;
 - duplicate provider IDs are zero;
 - every intersecting provider ID has zero unexplained critical-fact mismatch;
