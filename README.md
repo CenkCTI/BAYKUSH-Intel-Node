@@ -77,6 +77,9 @@ The first deployment target is an Oracle VM, but the runtime is designed to rema
 - [ThreatFox Source Admission](docs/SOURCE_ADMISSION_THREATFOX.md)
 - [NODE-2F MalwareBazaar](docs/NODE_2F_MALWAREBAZAAR.md)
 - [MalwareBazaar Source Admission](docs/SOURCE_ADMISSION_MALWAREBAZAAR.md)
+- [NODE-2G Shadow Parity & Acceptance](docs/NODE_2G_SHADOW_PARITY.md)
+- [NODE-2 Difference Register](docs/NODE_2_DIFFERENCE_REGISTER.md)
+- [NODE-2 Final Acceptance Report](docs/NODE_2_ACCEPTANCE_REPORT.md)
 
 ## Development sequence
 
@@ -116,14 +119,20 @@ Additional sources are admitted only after the measurement and CİTEM Global Vie
 
 ## Current phase
 
-**NODE-2F — MalwareBazaar Recent Sample Metadata Adapter**
+**NODE-2G — Five-Source Shadow Parity & NODE-2 Final Acceptance**
 
-NODE-2F collects only the authenticated MalwareBazaar Community API `get_recent&selector=time` metadata surface. It polls every 15 minutes against the provider's rolling 60-minute additions window, preserves explicit recovery-gap state, and never invents a cursor or treats count-bounded queries as complete historical recovery.
+CISA KEV, NVD CVE, FIRST EPSS, ThreatFox and MalwareBazaar are now implemented as admitted production-shaped source adapters. NODE-2G does not add another provider. It closes the migration phase by proving that all five sources coexist safely on the same runtime and that the Node preserves source identity, semantics, immutable raw truth, checkpoint state, normalization provenance and credential isolation across the full source pack.
 
-The adapter is metadata-only by design: it never uses `get_file`, never downloads or stores malware binaries, and never executes source content. Sample SHA-256 is the immutable source identity; exact re-delivery deduplicates while changed source metadata creates a new immutable revision. Query provenance is preserved separately in raw manifests.
+NODE-2G introduces a neutral `NODE2G_PARITY_V1` projection so legacy CİTEM collectors and the Node are compared on upstream source identity and critical provider facts rather than incompatible internal database schemas. Same-snapshot CISA/NVD/EPSS membership is strict; ThreatFox and MalwareBazaar live count equality is explicitly not a contract because their legacy and Node collection windows intentionally differ. Every live difference must be classified before cutover.
 
-MalwareBazaar output normalizes to `MALWARE_SAMPLE_RECORD` with algorithm-scoped cryptographic hash identities, source-scoped family signatures, file metadata, tags, reporter information and similarity-hash facts. Nested intelligence, code-signing metadata and upload-origin country remain raw-only in v1. Repository sample volume is explicitly not infection prevalence, attack volume, victim count, geography, risk, severity or BAYKUSH priority.
+Automated readiness is exposed through:
 
-The Community API requires `MALWAREBAZAAR_AUTH_KEY`, sent only as an HTTP header and never persisted. The source remains disabled by default. Commercial use is recorded as restricted and redistribution as unknown pending deployment-specific abuse.ch terms/subscription verification.
+```text
+npm run test:node2g
+npm run node2g:status
+npm run node2g:report
+npm run node2g:export-node -- SOURCE_KEY
+npm run node2g:parity -- node.json citem.json [classifications.json]
+```
 
-With CISA KEV, NVD CVE, FIRST EPSS, ThreatFox and MalwareBazaar implemented, the next NODE-2 step is five-source shadow parity / acceptance before NODE-3 history, coverage and measurement work.
+NODE-2G preserves the legacy CİTEM collectors and historical data for audit/rollback, but after operator acceptance the BAYKUSH Intelligence Node becomes the collection authority for the five public/global sources. CİTEM Node API consumption remains NODE-4; NODE-3 first adds history, coverage and measurement projections above the accepted evidence stream.

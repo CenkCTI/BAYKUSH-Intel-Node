@@ -4,5 +4,7 @@ dist/
 .env.*
 !.env.example
 coverage/
+artifacts/node2g/
+tmp/node2g/
 *.log
 .DS_Store
