@@ -45,12 +45,20 @@ function sourceInstant(value: unknown): string | null {
 function parityWindow(sourceKey: ProductionSourceKey, start?: string | null, end?: string | null): ParityWindow | null {
   if (!start && !end) return null;
   if (!start || !end) throw new Error("Parity export requires both windowStart and windowEnd");
-  if (sourceKey !== "NVD_CVE") throw new Error("Explicit parity windows are currently supported only for NVD_CVE");
+  if (sourceKey !== "NVD_CVE" && sourceKey !== "THREATFOX") {
+    throw new Error("Explicit parity windows are currently supported only for NVD_CVE and THREATFOX");
+  }
   const startMs = Date.parse(start);
   const endMs = Date.parse(end);
   if (!Number.isFinite(startMs) || !Number.isFinite(endMs)) throw new Error("Parity export window must contain valid datetimes");
   if (startMs > endMs) throw new Error("Parity export windowStart must not be after windowEnd");
   return { start: new Date(startMs).toISOString(), end: new Date(endMs).toISOString() };
+}
+
+function parityWindowColumn(sourceKey: ProductionSourceKey): "upstream_updated_at" | "effective_at" {
+  if (sourceKey === "NVD_CVE") return "upstream_updated_at";
+  if (sourceKey === "THREATFOX") return "effective_at";
+  throw new Error(`No explicit parity-window column is defined for ${sourceKey}`);
 }
 
 function nodeFacts(sourceKey: ProductionSourceKey, payload: unknown): { subject: ParityRecord["subject"]; facts: Record<string, unknown> } {
@@ -108,7 +116,8 @@ function nodeFacts(sourceKey: ProductionSourceKey, payload: unknown): { subject:
           indicatorValue: text(source.ioc),
           firstSeen: sourceInstant(source.first_seen),
           lastSeen: sourceInstant(source.last_seen),
-          malwareFamily: text(source.malware_printable) ?? text(source.malware) ?? text(source.malware_malpedia),
+          // malware_malpedia is a reference URL, not a malware-family label.
+          malwareFamily: text(source.malware_printable) ?? text(source.malware),
           providerConfidence: numberValue(source.confidence_level),
         },
       };
@@ -167,13 +176,14 @@ export async function exportNodeParitySnapshot(
   if (!definition) throw new Error(`${sourceKey} source definition is not synchronized`);
 
   const window = parityWindow(sourceKey, options.windowStart, options.windowEnd);
+  const windowColumn = window ? parityWindowColumn(sourceKey) : null;
   const raw = await pool.query<RawRevisionRow>(
     `SELECT DISTINCT ON (source_record_id)
        source_record_id, payload, published_at, effective_at, upstream_updated_at
        FROM raw_source_records
       WHERE source_definition_id = $1
         AND NOT (source_record_id = ANY($2::text[]))
-        ${window ? "AND upstream_updated_at >= $3::timestamptz AND upstream_updated_at <= $4::timestamptz" : ""}
+        ${windowColumn ? `AND ${windowColumn} >= $3::timestamptz AND ${windowColumn} <= $4::timestamptz` : ""}
       ORDER BY source_record_id, received_at DESC, created_at DESC`,
     window
       ? [definition.id, [...excludedRecordIds[sourceKey]], window.start, window.end]
