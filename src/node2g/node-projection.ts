@@ -9,6 +9,11 @@ interface RawRevisionRow {
   upstream_updated_at: Date | null;
 }
 
+interface ParityWindow {
+  start: string;
+  end: string;
+}
+
 function object(value: unknown): Record<string, unknown> {
   return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
 }
@@ -35,6 +40,17 @@ function sourceInstant(value: unknown): string | null {
     : raw;
   const parsed = new Date(normalized);
   return Number.isNaN(parsed.valueOf()) ? raw : parsed.toISOString();
+}
+
+function parityWindow(sourceKey: ProductionSourceKey, start?: string | null, end?: string | null): ParityWindow | null {
+  if (!start && !end) return null;
+  if (!start || !end) throw new Error("Parity export requires both windowStart and windowEnd");
+  if (sourceKey !== "NVD_CVE") throw new Error("Explicit parity windows are currently supported only for NVD_CVE");
+  const startMs = Date.parse(start);
+  const endMs = Date.parse(end);
+  if (!Number.isFinite(startMs) || !Number.isFinite(endMs)) throw new Error("Parity export window must contain valid datetimes");
+  if (startMs > endMs) throw new Error("Parity export windowStart must not be after windowEnd");
+  return { start: new Date(startMs).toISOString(), end: new Date(endMs).toISOString() };
 }
 
 function nodeFacts(sourceKey: ProductionSourceKey, payload: unknown): { subject: ParityRecord["subject"]; facts: Record<string, unknown> } {
@@ -132,7 +148,12 @@ const excludedRecordIds: Readonly<Record<ProductionSourceKey, readonly string[]>
 export async function exportNodeParitySnapshot(
   pool: Pool,
   sourceKey: ProductionSourceKey,
-  options: { upstreamSnapshotId?: string | null; capturedAt?: string } = {},
+  options: {
+    upstreamSnapshotId?: string | null;
+    capturedAt?: string;
+    windowStart?: string | null;
+    windowEnd?: string | null;
+  } = {},
 ): Promise<ParitySnapshot> {
   const source = await pool.query<{
     id: string;
@@ -145,14 +166,18 @@ export async function exportNodeParitySnapshot(
   const definition = source.rows[0];
   if (!definition) throw new Error(`${sourceKey} source definition is not synchronized`);
 
+  const window = parityWindow(sourceKey, options.windowStart, options.windowEnd);
   const raw = await pool.query<RawRevisionRow>(
     `SELECT DISTINCT ON (source_record_id)
        source_record_id, payload, published_at, effective_at, upstream_updated_at
        FROM raw_source_records
       WHERE source_definition_id = $1
         AND NOT (source_record_id = ANY($2::text[]))
+        ${window ? "AND upstream_updated_at >= $3::timestamptz AND upstream_updated_at <= $4::timestamptz" : ""}
       ORDER BY source_record_id, received_at DESC, created_at DESC`,
-    [definition.id, [...excludedRecordIds[sourceKey]]],
+    window
+      ? [definition.id, [...excludedRecordIds[sourceKey]], window.start, window.end]
+      : [definition.id, [...excludedRecordIds[sourceKey]]],
   );
 
   const records: ParityRecord[] = raw.rows.map((row) => {
@@ -175,7 +200,7 @@ export async function exportNodeParitySnapshot(
     sourceKey,
     capturedAt: options.capturedAt ?? new Date().toISOString(),
     upstreamSnapshotId: options.upstreamSnapshotId ?? null,
-    window: { start: null, end: null },
+    window: window ?? { start: null, end: null },
     semantics: {
       sourceClass: definition.source_class,
       observationBasis: definition.observation_basis,
