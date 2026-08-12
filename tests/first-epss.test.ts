@@ -109,6 +109,16 @@ describe("FIRST EPSS production adapter", () => {
     })).rejects.toMatchObject({ code: "PROVIDER_ERROR" });
   });
 
+  it("rejects a gzip artifact whose decompressed CSV exceeds the independent bound", async () => {
+    await expect(parseFirstEpssArtifact({
+      stream: chunked(dataset([
+        "CVE-2026-12345,0.80000,0.99000",
+        "CVE-2026-12346,0.70000,0.98000",
+      ])),
+      maxDecompressedBytes: 64,
+    })).rejects.toMatchObject({ code: "PAYLOAD_LIMIT_EXCEEDED" });
+  });
+
   it("allows a valid dataset with zero records qualifying for the capture profile", async () => {
     const parsed = await parseFirstEpssArtifact({
       stream: chunked(dataset([
