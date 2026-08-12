@@ -37,6 +37,25 @@ const sharedThreatFoxCommonPayload = {
   },
 };
 
+const sharedMalwareBazaarCommonPayload = {
+  kind: "MALWAREBAZAAR_SAMPLE",
+  source: {
+    sha256_hash: "a".repeat(64),
+    sha3_384_hash: "d".repeat(96),
+    sha1_hash: "b".repeat(40),
+    md5_hash: "c".repeat(32),
+    first_seen: "2099-01-01 00:00:00",
+    last_seen: "2099-01-01 00:20:00",
+    file_name: "fixture.exe",
+    file_size: 1234,
+    file_type_mime: "application/x-dosexec",
+    file_type: "exe",
+    signature: "ExampleFamily",
+    reporter: "fixture",
+    tags: ["exe", "test"],
+  },
+};
+
 describe("NODE-2G Node parity projection", () => {
   it("normalizes CISA human-readable display whitespace without changing raw evidence", async () => {
     const query = vi.fn()
@@ -227,7 +246,7 @@ describe("NODE-2G Node parity projection", () => {
 
     await expect(exportNodeParitySnapshot(pool, "THREATFOX", {
       capturedAt: "2099-01-03T00:00:00.000Z",
-    })).rejects.toThrow("requires an explicit provider first_seen window");
+    })).rejects.toThrow("THREATFOX parity export requires an explicit provider first_seen window");
     expect(query).toHaveBeenCalledTimes(1);
   });
 
@@ -271,6 +290,83 @@ describe("NODE-2G Node parity projection", () => {
     expect(snapshot.records[0]?.facts.malwareFamily).toBeNull();
   });
 
+  it("projects shared MalwareBazaar critical facts and bounds live parity by provider first_seen", async () => {
+    const sha256 = "a".repeat(64);
+    const query = vi.fn()
+      .mockResolvedValueOnce({
+        rows: [{
+          id: "source-malwarebazaar",
+          source_class: "MALWARE_SAMPLE_REPOSITORY",
+          observation_basis: "PUBLISHED",
+        }],
+      })
+      .mockResolvedValueOnce({
+        rows: [{
+          source_record_id: sha256,
+          payload: sharedMalwareBazaarCommonPayload,
+          published_at: null,
+          effective_at: new Date("2099-01-01T00:00:00.000Z"),
+          upstream_updated_at: null,
+        }],
+      });
+    const pool = { query } as unknown as Pool;
+
+    const snapshot = await exportNodeParitySnapshot(pool, "MALWAREBAZAAR", {
+      capturedAt: "2099-01-01T00:40:00.000Z",
+      upstreamSnapshotId: null,
+      windowStart: "2098-12-31T23:50:00Z",
+      windowEnd: "2099-01-01T00:20:00Z",
+    });
+
+    expect(snapshot.window).toEqual({
+      start: "2098-12-31T23:50:00.000Z",
+      end: "2099-01-01T00:20:00.000Z",
+    });
+    expect(snapshot.records).toHaveLength(1);
+    expect(snapshot.records[0]).toMatchObject({
+      sourceRecordId: sha256,
+      subject: { kind: "HASH", value: sha256 },
+      facts: {
+        sha256,
+        sha1: "b".repeat(40),
+        md5: "c".repeat(32),
+        firstSeen: "2099-01-01T00:00:00.000Z",
+        lastSeen: "2099-01-01T00:20:00.000Z",
+        fileName: "fixture.exe",
+        fileSize: 1234,
+        fileType: "exe",
+        fileTypeMime: "application/x-dosexec",
+        signature: "ExampleFamily",
+        reporter: "fixture",
+        tags: ["exe", "test"],
+      },
+    });
+    expect(query.mock.calls[1]?.[1]).toEqual([
+      "source-malwarebazaar",
+      ["query-manifest"],
+      "2098-12-31T23:50:00.000Z",
+      "2099-01-01T00:20:00.000Z",
+    ]);
+    expect(String(query.mock.calls[1]?.[0])).toContain("effective_at >= $3::timestamptz");
+    expect(String(query.mock.calls[1]?.[0])).toContain("effective_at <= $4::timestamptz");
+  });
+
+  it("requires an explicit provider first_seen window for MalwareBazaar exports", async () => {
+    const query = vi.fn().mockResolvedValueOnce({
+      rows: [{
+        id: "source-malwarebazaar",
+        source_class: "MALWARE_SAMPLE_REPOSITORY",
+        observation_basis: "PUBLISHED",
+      }],
+    });
+    const pool = { query } as unknown as Pool;
+
+    await expect(exportNodeParitySnapshot(pool, "MALWAREBAZAAR", {
+      capturedAt: "2099-01-01T00:40:00.000Z",
+    })).rejects.toThrow("MALWAREBAZAAR parity export requires an explicit provider first_seen window");
+    expect(query).toHaveBeenCalledTimes(1);
+  });
+
   it("rejects explicit parity windows for sources without a source-native window contract", async () => {
     const query = vi.fn().mockResolvedValueOnce({
       rows: [{
@@ -284,6 +380,6 @@ describe("NODE-2G Node parity projection", () => {
     await expect(exportNodeParitySnapshot(pool, "CISA_KEV", {
       windowStart: "2026-08-12T13:00:00Z",
       windowEnd: "2026-08-12T14:00:00Z",
-    })).rejects.toThrow("currently supported only for NVD_CVE and THREATFOX");
+    })).rejects.toThrow("currently supported only for NVD_CVE, THREATFOX and MALWAREBAZAAR");
   });
 });
