@@ -60,6 +60,12 @@ jobs:
         run: npm run test:node2f
       - name: NODE-2G five-source aggregate acceptance
         run: npm run test:node2g
+      - name: NODE-2G deterministic resilience acceptance
+        run: npm run test:node2g-resilience
+      - name: NODE-2G final database invariant audit
+        run: npm run node2g:final-audit
+      - name: NODE-2G security and private-boundary audit
+        run: npm run node2g:security-audit
       - name: Build
         run: npm run build
       - name: Build container
