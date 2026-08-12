@@ -2,16 +2,23 @@ import { pool } from "../src/db/pool.js";
 import { exportNodeParitySnapshot } from "../src/node2g/node-projection.js";
 import { productionSourceKeySchema } from "../src/node2g/parity.js";
 
-const [, , rawSourceKey, upstreamSnapshotId] = process.argv;
+const [, , rawSourceKey, rawSnapshotId, windowStartArg, windowEndArg, capturedAtArg] = process.argv;
 if (!rawSourceKey) {
-  console.error("Usage: npm run node2g:export-node -- <SOURCE_KEY> [upstream-snapshot-id]");
+  console.error("Usage: npm run node2g:export-node -- <SOURCE_KEY> [upstream-snapshot-id|-] [windowStart] [windowEnd] [capturedAt]");
   process.exit(2);
 }
 
 try {
   const sourceKey = productionSourceKeySchema.parse(rawSourceKey);
+  const upstreamSnapshotId = rawSnapshotId && rawSnapshotId !== "-" ? rawSnapshotId : null;
+  const windowStart = windowStartArg?.trim() || null;
+  const windowEnd = windowEndArg?.trim() || null;
+  const capturedAt = capturedAtArg?.trim() || undefined;
   const snapshot = await exportNodeParitySnapshot(pool, sourceKey, {
-    upstreamSnapshotId: upstreamSnapshotId ?? null,
+    upstreamSnapshotId,
+    windowStart,
+    windowEnd,
+    ...(capturedAt ? { capturedAt } : {}),
   });
   console.log(JSON.stringify(snapshot, null, 2));
 } finally {
