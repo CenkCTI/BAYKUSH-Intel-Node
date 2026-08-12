@@ -4,6 +4,7 @@ import { createCisaKevAdapter } from "./cisa-kev.js";
 import { createFirstEpssAdapter } from "./first-epss.js";
 import { createNvdCveAdapterV2 } from "./nvd-cve-normalization-v2.js";
 import { createTestSyntheticAdapter } from "./test-synthetic.js";
+import { createThreatFoxAdapter } from "./threatfox.js";
 
 const adapters = [
   createTestSyntheticAdapter({
@@ -13,6 +14,7 @@ const adapters = [
   createCisaKevAdapter(),
   createNvdCveAdapterV2(config.nvdApiKey === undefined ? {} : { apiKey: config.nvdApiKey }),
   createFirstEpssAdapter(),
+  createThreatFoxAdapter(config.threatFoxAuthKey === undefined ? {} : { authKey: config.threatFoxAuthKey }),
 ];
 
 for (const adapter of adapters) assertAdapterContract(adapter);
