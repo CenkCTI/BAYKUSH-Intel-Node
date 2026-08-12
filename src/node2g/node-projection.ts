@@ -43,7 +43,12 @@ function sourceInstant(value: unknown): string | null {
 }
 
 function parityWindow(sourceKey: ProductionSourceKey, start?: string | null, end?: string | null): ParityWindow | null {
-  if (!start && !end) return null;
+  if (!start && !end) {
+    if (sourceKey === "THREATFOX") {
+      throw new Error("THREATFOX parity export requires an explicit provider first_seen window");
+    }
+    return null;
+  }
   if (!start || !end) throw new Error("Parity export requires both windowStart and windowEnd");
   if (sourceKey !== "NVD_CVE" && sourceKey !== "THREATFOX") {
     throw new Error("Explicit parity windows are currently supported only for NVD_CVE and THREATFOX");
