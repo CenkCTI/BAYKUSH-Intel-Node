@@ -305,9 +305,12 @@ async function main(): Promise<void> {
   const claimedWork = await claimNextWorkUnit(crashRunId, "node2g-dead-worker", 10);
   assert.ok(claimedWork);
   await pool.query(
-    `UPDATE collection_runs SET lease_expires_at = now() - interval '1 second' WHERE id = $1;
-     UPDATE collection_work_units SET lease_expires_at = now() - interval '1 second' WHERE id = $2`,
-    [crashRunId, claimedWork.id],
+    "UPDATE collection_runs SET lease_expires_at = now() - interval '1 second' WHERE id = $1",
+    [crashRunId],
+  );
+  await pool.query(
+    "UPDATE collection_work_units SET lease_expires_at = now() - interval '1 second' WHERE id = $1",
+    [claimedWork.id],
   );
   assert.equal(await workerTick("node2g-recovery-worker"), true, "expired worker lease must be reclaimable");
   await driveRunToSuccess(crashRunId, "node2g-recovery-worker");
