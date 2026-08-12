@@ -58,6 +58,34 @@ const threatFoxWindow: ParitySnapshot["window"] = {
   end: "2026-08-12T11:50:00.000Z",
 };
 
+const malwareBazaarFacts = {
+  sha256: "a".repeat(64),
+  sha1: "b".repeat(40),
+  md5: "c".repeat(32),
+  firstSeen: "2026-08-12T12:00:00.000Z",
+  lastSeen: "2026-08-12T12:20:00.000Z",
+  fileName: "x.exe",
+  fileSize: 100,
+  fileType: "exe",
+  fileTypeMime: "application/x-dosexec",
+  signature: "Fixture",
+  reporter: "reporter",
+  tags: ["rat", "exe"],
+};
+
+const malwareBazaarWindow: ParitySnapshot["window"] = {
+  start: "2026-08-12T11:30:00.000Z",
+  end: "2026-08-12T12:00:00.000Z",
+};
+
+const malwareBazaarOptions = {
+  sourceRecordId: "a".repeat(64),
+  sourceClass: "MALWARE_SAMPLE_REPOSITORY",
+  observationBasis: "PUBLISHED",
+  upstreamSnapshotId: null,
+  window: malwareBazaarWindow,
+} as const;
+
 describe("NODE-2G neutral parity", () => {
   it("accepts exact critical source facts from the same CISA snapshot", () => {
     const result = compareParitySnapshots(snapshot("NODE", "CISA_KEV", cisaFacts), snapshot("CITEM", "CISA_KEV", cisaFacts));
@@ -92,13 +120,94 @@ describe("NODE-2G neutral parity", () => {
   });
 
   it("compares MalwareBazaar source tags without treating provider array order as meaning", () => {
-    const common = {
-      sha256: "a".repeat(64), sha1: "b".repeat(40), md5: "c".repeat(32), firstSeen: "2026-08-12 12:00:00", lastSeen: null,
-      fileName: "x.exe", fileSize: 100, fileType: "exe", fileTypeMime: "application/x-dosexec", signature: "Fixture", reporter: "reporter",
-    };
-    const node = snapshot("NODE", "MALWAREBAZAAR", { ...common, tags: ["rat", "exe"] }, { sourceRecordId: "a".repeat(64), sourceClass: "MALWARE_SAMPLE_REPOSITORY", observationBasis: "PUBLISHED" });
-    const citem = snapshot("CITEM", "MALWAREBAZAAR", { ...common, tags: ["exe", "rat"] }, { sourceRecordId: "a".repeat(64), sourceClass: "MALWARE_SAMPLE_REPOSITORY", observationBasis: "PUBLISHED" });
+    const node = snapshot("NODE", "MALWAREBAZAAR", malwareBazaarFacts, malwareBazaarOptions);
+    const citem = snapshot("CITEM", "MALWAREBAZAAR", { ...malwareBazaarFacts, tags: ["exe", "rat"] }, malwareBazaarOptions);
     expect(compareParitySnapshots(node, citem).accepted).toBe(true);
+  });
+
+  it("requires the same explicit provider first_seen window for MalwareBazaar live parity", () => {
+    const node = snapshot("NODE", "MALWAREBAZAAR", malwareBazaarFacts, malwareBazaarOptions);
+    const citem = snapshot("CITEM", "MALWAREBAZAAR", malwareBazaarFacts, {
+      ...malwareBazaarOptions,
+      window: {
+        start: "2026-08-12T11:25:00.000Z",
+        end: "2026-08-12T11:55:00.000Z",
+      },
+    });
+    const result = compareParitySnapshots(node, citem);
+    expect(result.accepted).toBe(false);
+    expect(result.differences).toContainEqual(expect.objectContaining({
+      kind: "SEMANTIC_MISMATCH",
+      field: "window",
+      classification: "REGRESSION",
+    }));
+  });
+
+  it("rejects unbounded MalwareBazaar live parity even when facts match", () => {
+    const unbounded = { ...malwareBazaarOptions, window: { start: null, end: null } } as const;
+    const node = snapshot("NODE", "MALWAREBAZAAR", malwareBazaarFacts, unbounded);
+    const citem = snapshot("CITEM", "MALWAREBAZAAR", malwareBazaarFacts, unbounded);
+    const result = compareParitySnapshots(node, citem);
+    expect(result.accepted).toBe(false);
+    expect(result.differences).toContainEqual(expect.objectContaining({
+      kind: "SEMANTIC_MISMATCH",
+      field: "window",
+      classification: "REGRESSION",
+    }));
+  });
+
+  it("accepts monotonic MalwareBazaar lastSeen advancement on the later live capture as temporal skew", () => {
+    const node = snapshot("NODE", "MALWAREBAZAAR", malwareBazaarFacts, {
+      ...malwareBazaarOptions,
+      capturedAt: "2026-08-12T12:30:00.000Z",
+    });
+    const citem = snapshot("CITEM", "MALWAREBAZAAR", {
+      ...malwareBazaarFacts,
+      lastSeen: "2026-08-12T12:25:00.000Z",
+    }, {
+      ...malwareBazaarOptions,
+      capturedAt: "2026-08-12T12:35:00.000Z",
+    });
+    const result = compareParitySnapshots(node, citem);
+    expect(result.accepted).toBe(true);
+    expect(result.differences).toContainEqual(expect.objectContaining({
+      kind: "FACT_MISMATCH",
+      field: "lastSeen",
+      classification: "TEMPORAL_SKEW",
+    }));
+  });
+
+  it("accepts MalwareBazaar null-to-datetime lastSeen advancement only on the later capture", () => {
+    const node = snapshot("NODE", "MALWAREBAZAAR", { ...malwareBazaarFacts, lastSeen: null }, {
+      ...malwareBazaarOptions,
+      capturedAt: "2026-08-12T12:30:00.000Z",
+    });
+    const citem = snapshot("CITEM", "MALWAREBAZAAR", malwareBazaarFacts, {
+      ...malwareBazaarOptions,
+      capturedAt: "2026-08-12T12:35:00.000Z",
+    });
+    expect(compareParitySnapshots(node, citem).accepted).toBe(true);
+  });
+
+  it("blocks MalwareBazaar lastSeen drift that contradicts capture ordering", () => {
+    const node = snapshot("NODE", "MALWAREBAZAAR", malwareBazaarFacts, {
+      ...malwareBazaarOptions,
+      capturedAt: "2026-08-12T12:30:00.000Z",
+    });
+    const citem = snapshot("CITEM", "MALWAREBAZAAR", {
+      ...malwareBazaarFacts,
+      lastSeen: "2026-08-12T12:10:00.000Z",
+    }, {
+      ...malwareBazaarOptions,
+      capturedAt: "2026-08-12T12:35:00.000Z",
+    });
+    const result = compareParitySnapshots(node, citem);
+    expect(result.accepted).toBe(false);
+    expect(result.differences).toContainEqual(expect.objectContaining({
+      kind: "FACT_MISMATCH",
+      field: "lastSeen",
+      classification: "REGRESSION",
+    }));
   });
 
   it("accepts exact intersecting ThreatFox critical facts inside the same bounded first_seen window", () => {
