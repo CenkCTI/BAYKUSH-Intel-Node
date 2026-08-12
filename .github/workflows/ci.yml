@@ -56,6 +56,8 @@ jobs:
         run: npm run test:node2d
       - name: NODE-2E ThreatFox acceptance
         run: npm run test:node2e
+      - name: NODE-2F MalwareBazaar acceptance
+        run: npm run test:node2f
       - name: Build
         run: npm run build
       - name: Build container

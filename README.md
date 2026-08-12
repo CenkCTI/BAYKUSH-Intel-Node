@@ -75,6 +75,8 @@ The first deployment target is an Oracle VM, but the runtime is designed to rema
 - [FIRST EPSS Source Admission](docs/SOURCE_ADMISSION_FIRST_EPSS.md)
 - [NODE-2E ThreatFox](docs/NODE_2E_THREATFOX.md)
 - [ThreatFox Source Admission](docs/SOURCE_ADMISSION_THREATFOX.md)
+- [NODE-2F MalwareBazaar](docs/NODE_2F_MALWAREBAZAAR.md)
+- [MalwareBazaar Source Admission](docs/SOURCE_ADMISSION_MALWAREBAZAAR.md)
 
 ## Development sequence
 
@@ -114,12 +116,14 @@ Additional sources are admitted only after the measurement and CİTEM Global Vie
 
 ## Current phase
 
-**NODE-2E — ThreatFox Recent IOC Reporting Adapter**
+**NODE-2F — MalwareBazaar Recent Sample Metadata Adapter**
 
-NODE-2E collects the authenticated ThreatFox Community API `get_iocs` surface using a bounded one-to-seven-day overlapping recovery window. It preserves source IOC objects, raw response/query provenance, immutable revisions, query coverage context, and order-independent snapshot fingerprints without inventing a provider cursor.
+NODE-2F collects only the authenticated MalwareBazaar Community API `get_recent&selector=time` metadata surface. It polls every 15 minutes against the provider's rolling 60-minute additions window, preserves explicit recovery-gap state, and never invents a cursor or treats count-bounded queries as complete historical recovery.
 
-ThreatFox output normalizes to source-scoped `IOC_REPORT` evidence. Known domain, URL, IP:port, MD5, SHA1, and SHA256 indicators are mapped conservatively while unknown/new types remain available as reports with explicit normalization status. ThreatFox confidence, malware labels, reporter metadata, first-seen, and last-seen remain source assertions; they are not converted into BAYKUSH confidence, attack counts, attacker origin, risk, severity, priority, active exploitation, or global threat level.
+The adapter is metadata-only by design: it never uses `get_file`, never downloads or stores malware binaries, and never executes source content. Sample SHA-256 is the immutable source identity; exact re-delivery deduplicates while changed source metadata creates a new immutable revision. Query provenance is preserved separately in raw manifests.
 
-The Community API requires `THREATFOX_AUTH_KEY`, which is sent only as an HTTP header and is never persisted. The source remains disabled by default, with commercial use recorded as restricted and redistribution kept unknown pending the applicable abuse.ch terms/subscription context.
+MalwareBazaar output normalizes to `MALWARE_SAMPLE_RECORD` with algorithm-scoped cryptographic hash identities, source-scoped family signatures, file metadata, tags, reporter information and similarity-hash facts. Nested intelligence, code-signing metadata and upload-origin country remain raw-only in v1. Repository sample volume is explicitly not infection prevalence, attack volume, victim count, geography, risk, severity or BAYKUSH priority.
 
-CISA KEV, NVD, FIRST EPSS, and ThreatFox remain independent upstream semantics. MalwareBazaar remains out of scope until NODE-2F.
+The Community API requires `MALWAREBAZAAR_AUTH_KEY`, sent only as an HTTP header and never persisted. The source remains disabled by default. Commercial use is recorded as restricted and redistribution as unknown pending deployment-specific abuse.ch terms/subscription verification.
+
+With CISA KEV, NVD CVE, FIRST EPSS, ThreatFox and MalwareBazaar implemented, the next NODE-2 step is five-source shadow parity / acceptance before NODE-3 history, coverage and measurement work.
