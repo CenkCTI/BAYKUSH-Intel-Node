@@ -80,6 +80,27 @@ describe("FIRST EPSS production adapter", () => {
     expect(parsed.selected.map((row) => row.cve)).toEqual(["CVE-2026-10001", "CVE-2026-10002"]);
   });
 
+  it("accepts scientific notation used by live FIRST probability fields", async () => {
+    const parsed = await parseFirstEpssArtifact({
+      stream: chunked(dataset([
+        "CVE-2023-20914,0.0006,9e-05",
+        "CVE-2026-12345,1e-1,9.5E-1",
+      ])),
+      minimumEpss: 0,
+    });
+
+    expect(parsed.totalRows).toBe(2);
+    expect(parsed.selected).toHaveLength(2);
+
+    const liveShape = parsed.selected.find((row) => row.cve === "CVE-2023-20914");
+    expect(liveShape?.epss).toBe(0.0006);
+    expect(liveShape?.percentile).toBe(0.00009);
+
+    const exponentShape = parsed.selected.find((row) => row.cve === "CVE-2026-12345");
+    expect(exponentShape?.epss).toBe(0.1);
+    expect(exponentShape?.percentile).toBe(0.95);
+  });
+
   it("retains unknown additive CSV columns only as raw selected-row extras", async () => {
     const csv = gzipCsv([
       "#model_version:v2026.06.15,score_date:2026-08-12T00:00:00+0000",
