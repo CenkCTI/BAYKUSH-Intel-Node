@@ -52,6 +52,8 @@ jobs:
         run: npm run test:node2b
       - name: NODE-2C NVD CVE acceptance
         run: npm run test:node2c
+      - name: NODE-2D FIRST EPSS acceptance
+        run: npm run test:node2d
       - name: Build
         run: npm run build
       - name: Build container

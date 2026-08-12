@@ -71,6 +71,8 @@ The first deployment target is an Oracle VM, but the runtime is designed to rema
 - [CISA KEV Source Admission](docs/SOURCE_ADMISSION_CISA_KEV.md)
 - [NODE-2C NVD CVE](docs/NODE_2C_NVD_CVE.md)
 - [NVD CVE Source Admission](docs/SOURCE_ADMISSION_NVD_CVE.md)
+- [NODE-2D FIRST EPSS](docs/NODE_2D_FIRST_EPSS.md)
+- [FIRST EPSS Source Admission](docs/SOURCE_ADMISSION_FIRST_EPSS.md)
 
 ## Development sequence
 
@@ -110,8 +112,10 @@ Additional sources are admitted only after the measurement and CİTEM Global Vie
 
 ## Current phase
 
-**NODE-2C — NVD CVE Production Adapter**
+**NODE-2D — FIRST EPSS Production Adapter**
 
-NODE-2C admits NVD CVE API 2.0 through fixed last-modified windows, offset pagination, conservative provider pacing, restart-safe checkpoints, immutable raw CVE revisions, and source-semantic `VULNERABILITY_RECORD` normalization.
+NODE-2D collects FIRST EPSS from the official daily compressed bulk dataset rather than using the lookup API for synchronization. The complete source artifact is streamed and validated under explicit compressed/decompressed bounds, model-version and score-date provenance are preserved, and deterministic top-K selection retains the bounded `EPSS_HIGH_SIGNAL_V1` population (`EPSS >= 0.10`, maximum 2500 records).
 
-NVD remains disabled by default. An API key is optional and header-only. NVD/CISA mirrored fields do not create a second KEV assertion, CVSS is not collapsed into a single risk score, and CPE applicability logic remains intact in raw source truth. FIRST EPSS, ThreatFox, and MalwareBazaar remain out of scope until their respective NODE-2 subphases.
+EPSS canonical output is `EXPLOIT_PROBABILITY_SCORE` only. It is not active-exploitation proof, attack volume, severity, business risk, remediation priority, or BAYKUSH Global Priority. Absence from the retained population is not score zero. The complete daily file is validated while only the explicitly declared bounded population plus a provenance manifest is persisted.
+
+CISA KEV and NVD remain independent upstream semantics. ThreatFox and MalwareBazaar remain out of scope until NODE-2E and NODE-2F.

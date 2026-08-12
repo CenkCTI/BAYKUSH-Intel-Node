@@ -1,6 +1,6 @@
 {
   "name": "@baykush/intelligence-node",
-  "version": "0.2.2",
+  "version": "0.2.3",
   "private": true,
   "type": "module",
   "description": "Shared intelligence data runtime for the BAYKUSH ecosystem.",
@@ -17,6 +17,7 @@
     "test:node2a": "tsx scripts/test-node2a.ts",
     "test:node2b": "tsx scripts/test-node2b.ts",
     "test:node2c": "tsx scripts/test-node2c.ts",
+    "test:node2d": "tsx scripts/test-node2d.ts",
     "db:migrate": "node scripts/migrate.mjs",
     "dev:api": "tsx src/api/main.ts",
     "dev:scheduler": "tsx src/scheduler/main.ts",
@@ -29,6 +30,7 @@
     "start:normalizer": "node dist/normalizer/main.js"
   },
   "dependencies": {
+    "csv-parse": "^7.0.1",
     "pg": "^8.0.0",
     "zod": "^4.0.0"
   },
