@@ -66,7 +66,7 @@ The first deployment target is an Oracle VM, but the runtime is designed to rema
 - [Development Roadmap](docs/ROADMAP.md)
 - [NODE-0 Acceptance](docs/ACCEPTANCE.md)
 - [NODE-1 Runtime Backbone](docs/NODE_1_RUNTIME.md)
-- [NODE-2A Production Source Foundation](docs/NODE_2A_PRODUCTION_SOURCE_FOUNDATION.md)
+- [NODE-2A Production Source Foundation](docs/NODE_2A_PRODUCTION_FOUNDATION.md)
 - [NODE-2B CISA KEV](docs/NODE_2B_CISA_KEV.md)
 - [CISA KEV Source Admission](docs/SOURCE_ADMISSION_CISA_KEV.md)
 - [NODE-2C NVD CVE](docs/NODE_2C_NVD_CVE.md)
