@@ -11,13 +11,14 @@ function snapshot(
     sourceClass?: string;
     observationBasis?: string;
     window?: ParitySnapshot["window"];
+    capturedAt?: string;
   } = {},
 ): ParitySnapshot {
   return {
     schemaVersion: NODE2G_PARITY_SCHEMA_VERSION,
     producer,
     sourceKey,
-    capturedAt: "2026-08-12T13:00:00.000Z",
+    capturedAt: options.capturedAt ?? "2026-08-12T13:00:00.000Z",
     upstreamSnapshotId: options.upstreamSnapshotId ?? "snapshot-1",
     window: options.window ?? { start: null, end: null },
     semantics: {
@@ -116,6 +117,57 @@ describe("NODE-2G neutral parity", () => {
     expect(result.intersection).toBe(1);
     expect(result.blockingDifferences).toBe(0);
     expect(result.unexplainedDifferences).toBe(0);
+  });
+
+  it("accepts monotonic ThreatFox lastSeen advancement on the later live capture as temporal skew", () => {
+    const node = snapshot("NODE", "THREATFOX", threatFoxFacts, {
+      sourceRecordId: "42",
+      upstreamSnapshotId: null,
+      window: threatFoxWindow,
+      capturedAt: "2026-08-12T13:00:00.000Z",
+    });
+    const citem = snapshot("CITEM", "THREATFOX", {
+      ...threatFoxFacts,
+      lastSeen: "2026-08-12T12:45:00.000Z",
+    }, {
+      sourceRecordId: "42",
+      upstreamSnapshotId: null,
+      window: threatFoxWindow,
+      capturedAt: "2026-08-12T13:30:00.000Z",
+    });
+    const result = compareParitySnapshots(node, citem);
+    expect(result.accepted).toBe(true);
+    expect(result.blockingDifferences).toBe(0);
+    expect(result.differences).toContainEqual(expect.objectContaining({
+      kind: "FACT_MISMATCH",
+      field: "lastSeen",
+      classification: "TEMPORAL_SKEW",
+    }));
+  });
+
+  it("blocks ThreatFox lastSeen drift that contradicts live capture ordering", () => {
+    const node = snapshot("NODE", "THREATFOX", threatFoxFacts, {
+      sourceRecordId: "42",
+      upstreamSnapshotId: null,
+      window: threatFoxWindow,
+      capturedAt: "2026-08-12T13:00:00.000Z",
+    });
+    const citem = snapshot("CITEM", "THREATFOX", {
+      ...threatFoxFacts,
+      lastSeen: "2026-08-12T12:15:00.000Z",
+    }, {
+      sourceRecordId: "42",
+      upstreamSnapshotId: null,
+      window: threatFoxWindow,
+      capturedAt: "2026-08-12T13:30:00.000Z",
+    });
+    const result = compareParitySnapshots(node, citem);
+    expect(result.accepted).toBe(false);
+    expect(result.differences).toContainEqual(expect.objectContaining({
+      kind: "FACT_MISMATCH",
+      field: "lastSeen",
+      classification: "REGRESSION",
+    }));
   });
 
   it("blocks ThreatFox comparison when the two producers do not use the same explicit first_seen window", () => {
