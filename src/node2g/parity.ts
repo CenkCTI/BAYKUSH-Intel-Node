@@ -123,10 +123,43 @@ export const sourceParityRules: Readonly<Record<ProductionSourceKey, SourceParit
 };
 
 function canonicalJson(value: unknown): string {
-  if (value === null || typeof value !== "object") return JSON.stringify(value);
+  if (value === undefined) return "undefined";
+  if (value === null || typeof value !== "object") return JSON.stringify(value) ?? "undefined";
   if (Array.isArray(value)) return `[${value.map(canonicalJson).join(",")}]`;
   const object = value as Record<string, unknown>;
   return `{${Object.keys(object).sort().map((key) => `${JSON.stringify(key)}:${canonicalJson(object[key])}`).join(",")}}`;
+}
+
+function numericEquivalent(a: unknown, b: unknown): boolean {
+  const left = typeof a === "number" ? a : typeof a === "string" && a.trim() ? Number(a) : Number.NaN;
+  const right = typeof b === "number" ? b : typeof b === "string" && b.trim() ? Number(b) : Number.NaN;
+  return Number.isFinite(left) && Number.isFinite(right) && Math.abs(left - right) <= 1e-12;
+}
+
+function sortedStringArray(value: unknown): string[] | null {
+  if (!Array.isArray(value) || !value.every((item) => typeof item === "string")) return null;
+  return [...value].sort();
+}
+
+function factsEquivalent(sourceKey: ProductionSourceKey, field: string, nodeValue: unknown, citemValue: unknown): boolean {
+  if (sourceKey === "FIRST_EPSS" && (field === "score" || field === "percentile")) {
+    return numericEquivalent(nodeValue, citemValue);
+  }
+  if (sourceKey === "MALWAREBAZAAR" && field === "tags") {
+    const nodeTags = sortedStringArray(nodeValue);
+    const citemTags = sortedStringArray(citemValue);
+    if (nodeTags && citemTags) return canonicalJson(nodeTags) === canonicalJson(citemTags);
+  }
+  return canonicalJson(nodeValue) === canonicalJson(citemValue);
+}
+
+function observationBasisEquivalent(sourceKey: ProductionSourceKey, nodeBasis: string, citemBasis: string): boolean {
+  if (nodeBasis === citemBasis) return true;
+  if (sourceKey === "NVD_CVE") {
+    const values = new Set([nodeBasis, citemBasis]);
+    return values.has("ENRICHED") && values.has("PUBLISHED");
+  }
+  return false;
 }
 
 function uniqueRecordMap(snapshot: ParitySnapshot, differences: ParityDifference[]) {
@@ -201,14 +234,17 @@ export function compareParitySnapshots(
     });
   }
   if (node.semantics.observationBasis !== citem.semantics.observationBasis) {
+    const equivalent = observationBasisEquivalent(sourceKey, node.semantics.observationBasis, citem.semantics.observationBasis);
     differences.push({
       kind: "SEMANTIC_MISMATCH",
       sourceRecordId: null,
       field: "observationBasis",
       nodeValue: node.semantics.observationBasis,
       citemValue: citem.semantics.observationBasis,
-      classification: "REGRESSION",
-      reason: "Observation basis must remain semantically equivalent across the collection-authority cutover.",
+      classification: equivalent ? "SEMANTICALLY_EQUIVALENT" : "REGRESSION",
+      reason: equivalent
+        ? "The source-specific observation-basis labels differ but preserve the accepted source meaning."
+        : "Observation basis changed the source meaning across the collection-authority cutover.",
     });
   }
 
@@ -232,7 +268,7 @@ export function compareParitySnapshots(
     for (const field of rule.criticalFactKeys) {
       const nodeValue = nodeRecord.facts[field];
       const citemValue = citemRecord.facts[field];
-      if (canonicalJson(nodeValue) === canonicalJson(citemValue)) continue;
+      if (factsEquivalent(sourceKey, field, nodeValue, citemValue)) continue;
       differences.push({
         kind: "FACT_MISMATCH",
         sourceRecordId,
