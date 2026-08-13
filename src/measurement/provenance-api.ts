@@ -1,5 +1,6 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { pool } from "../db/pool.js";
+import { getMeasurementRegistration } from "./registry.js";
 
 function send(response: ServerResponse, status: number, body: unknown): void {
   response.statusCode = status;
@@ -58,6 +59,24 @@ export async function handleMeasurementProvenanceApi(
     return true;
   }
 
+  const registration = getMeasurementRegistration(row.measurement_key);
+  if (
+    !registration
+    || registration.definition.contractVersion !== row.contract_version
+    || registration.calculation.calculationVersion !== row.calculation_version
+  ) {
+    send(response, 503, {
+      apiVersion: "v1",
+      generatedAt: new Date().toISOString(),
+      data: null,
+      error: {
+        code: "DEPENDENCY_UNAVAILABLE",
+        message: "Measurement semantic contract is not registered",
+      },
+    });
+    return true;
+  }
+
   const facts = await pool.query(
     `WITH latest_at_calculation AS (
        SELECT DISTINCT ON (fact_key)
@@ -100,6 +119,11 @@ export async function handleMeasurementProvenanceApi(
         key: row.measurement_key,
         contractVersion: row.contract_version,
         calculationVersion: row.calculation_version,
+        unit: registration.definition.unit,
+        timeAxis: registration.definition.primaryTimeAxis,
+        populationProfile: registration.definition.populationProfile,
+        represents: registration.definition.represents,
+        doesNotRepresent: registration.definition.doesNotRepresent,
       },
       revision: {
         id: row.id,
