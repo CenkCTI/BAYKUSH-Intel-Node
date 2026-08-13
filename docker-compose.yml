@@ -36,6 +36,7 @@ services:
       <<: *node-env
       PORT: 8080
       NODE_INSTANCE_ID: api-1
+      BAYKUSH_NODE_API_TOKEN: ${BAYKUSH_NODE_API_TOKEN:-}
     ports:
       - "8080:8080"
     depends_on:
@@ -91,6 +92,17 @@ services:
     environment:
       <<: *node-env
       NODE_INSTANCE_ID: normalizer-1
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    restart: unless-stopped
+
+  measurement:
+    build: .
+    command: ["node", "dist/measurement/main.js"]
+    environment:
+      <<: *node-env
+      NODE_INSTANCE_ID: measurement-1
     depends_on:
       migrate:
         condition: service_completed_successfully
