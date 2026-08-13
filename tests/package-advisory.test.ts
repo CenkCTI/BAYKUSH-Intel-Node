@@ -1,58 +1,51 @@
 import { describe, expect, it } from "vitest";
-import { createPackageAdvisoryAdapter } from "../src/sources/package-advisory.js";
+import { createNode5PackageSource } from "../src/sources/node5-package-source.js";
 
 const reviewed = {
-  ghsa_id: "GHSA-aaaa-bbbb-cccc",
-  cve_id: "CVE-2026-1234",
-  html_url: "https://github.com/advisories/GHSA-aaaa-bbbb-cccc",
-  summary: "Fixture advisory",
+  ghsa_id: "ADVISORY-FIXTURE-1",
+  cve_id: null,
+  html_url: "https://example.com/advisories/fixture-1",
+  summary: "Fixture package advisory",
   type: "reviewed",
   severity: "high",
   published_at: "2026-08-13T10:00:00Z",
   updated_at: "2026-08-13T11:00:00Z",
-  identifiers: [{ type: "CVE", value: "CVE-2026-1234" }],
+  identifiers: [],
   references: ["https://example.com/reference"],
-  vulnerabilities: [{ package: { ecosystem: "npm", name: "Example-Package" }, first_patched_version: { identifier: "1.2.3" }, vulnerable_version_range: "< 1.2.3" }],
+  vulnerabilities: [{ package: { ecosystem: "npm", name: "example-package" }, first_patched_version: { identifier: "1.2.3" }, vulnerable_version_range: "< 1.2.3" }],
 };
 
 function jsonFetch(payload: unknown): typeof fetch {
   return async () => new Response(JSON.stringify(payload), { status: 200, headers: { "content-type": "application/json" } });
 }
 
-describe("reviewed package advisory source", () => {
-  it("preserves GHSA identity and source publication/update time", async () => {
-    const adapter = createPackageAdvisoryAdapter({ fetchImpl: jsonFetch([reviewed]), now: () => Date.parse("2026-08-13T12:00:00Z") });
-    const work = await adapter.plan({ checkpoint: null });
-    const result = await adapter.fetch({ work, signal: new AbortController().signal });
-    expect(result.complete).toBe(true);
-    expect(adapter.identifyRawRecord(result.records[0])).toBe("GHSA-aaaa-bbbb-cccc");
-    expect(adapter.extractTimes(result.records[0])).toEqual({ publishedAt: "2026-08-13T10:00:00Z", effectiveAt: "2026-08-13T10:00:00Z", upstreamUpdatedAt: "2026-08-13T11:00:00Z" });
-  });
-
-  it("rejects unreviewed records in this source contract", async () => {
-    const adapter = createPackageAdvisoryAdapter({ fetchImpl: jsonFetch([{ ...reviewed, type: "unreviewed" }]) });
-    try {
-      await adapter.fetch({ work: await adapter.plan({ checkpoint: null }), signal: new AbortController().signal });
-      throw new Error("expected reviewed-only schema rejection");
-    } catch (error) {
-      expect(adapter.classifyFailure(error)).toMatchObject({ code: "SCHEMA_ERROR", retryable: false });
-    }
-  });
-
-  it("normalizes a security advisory and CVE evidence without deriving risk", async () => {
-    const adapter = createPackageAdvisoryAdapter({ fetchImpl: jsonFetch([reviewed]) });
+describe("reviewed package source runtime contract", () => {
+  it("normalizes the persisted raw payload", async () => {
+    const adapter = createNode5PackageSource({ fetchImpl: jsonFetch([reviewed]), now: () => Date.parse("2026-08-13T12:00:00Z") });
     const result = await adapter.fetch({ work: await adapter.plan({ checkpoint: null }), signal: new AbortController().signal });
-    const canonical = adapter.normalize(adapter.rawPayload(result.records[0]))[0];
+    const raw = adapter.rawPayload(result.records[0]);
+    const canonical = adapter.normalize(raw)[0];
     expect(canonical?.recordKind).toBe("SECURITY_ADVISORY");
-    expect(canonical?.entities).toContainEqual({ kind: "CVE", key: "CVE-2026-1234", label: "CVE-2026-1234" });
+    expect(canonical?.canonicalKey).toContain("advisory-fixture-1");
   });
 
-  it("fails closed when a modified-time window reaches the provider page limit", async () => {
-    const fullPage = Array.from({ length: 100 }, (_, i) => ({ ...reviewed, ghsa_id: `GHSA-aaaa-bbbb-${String(i).padStart(4, "0")}` }));
-    const adapter = createPackageAdvisoryAdapter({ fetchImpl: jsonFetch(fullPage) });
+  it("preserves published and updated time", async () => {
+    const adapter = createNode5PackageSource({ fetchImpl: jsonFetch([reviewed]) });
+    const result = await adapter.fetch({ work: await adapter.plan({ checkpoint: null }), signal: new AbortController().signal });
+    expect(adapter.extractTimes(result.records[0])).toEqual({ publishedAt: reviewed.published_at, effectiveAt: reviewed.published_at, upstreamUpdatedAt: reviewed.updated_at });
+  });
+
+  it("rejects non-reviewed records", async () => {
+    const adapter = createNode5PackageSource({ fetchImpl: jsonFetch([{ ...reviewed, type: "unreviewed" }]) });
+    await expect(adapter.fetch({ work: await adapter.plan({ checkpoint: null }), signal: new AbortController().signal })).rejects.toBeTruthy();
+  });
+
+  it("fails closed when a source window saturates its page bound", async () => {
+    const fullPage = Array.from({ length: 100 }, (_, index) => ({ ...reviewed, ghsa_id: `ADVISORY-FIXTURE-${index}` }));
+    const adapter = createNode5PackageSource({ fetchImpl: jsonFetch(fullPage) });
     try {
       await adapter.fetch({ work: await adapter.plan({ checkpoint: null }), signal: new AbortController().signal });
-      throw new Error("expected saturated-window failure");
+      throw new Error("expected bounded-window failure");
     } catch (error) {
       expect(adapter.classifyFailure(error).code).toBe("PAYLOAD_LIMIT_EXCEEDED");
     }

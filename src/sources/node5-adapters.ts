@@ -1,6 +1,6 @@
 import type { SourceAdapter } from "../contracts/source.js";
-import { createPackageAdvisoryAdapter } from "./package-advisory.js";
+import { createNode5PackageSource } from "./node5-package-source.js";
 
 export const node5Adapters: SourceAdapter[] = [
-  createPackageAdvisoryAdapter(),
+  createNode5PackageSource(),
 ];
