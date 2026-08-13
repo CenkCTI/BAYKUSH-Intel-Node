@@ -1,0 +1,10 @@
+import type { MeasurementSourceProjector } from "../projection/types.js";
+import { cisaKevMeasurementProjector } from "./cisa-kev.js";
+import { firstEpssMeasurementProjector } from "./first-epss.js";
+import { malwareBazaarMeasurementProjector } from "./malwarebazaar.js";
+import { nvdMeasurementProjector } from "./nvd-cve.js";
+import { testSyntheticMeasurementProjector } from "./test-synthetic.js";
+import { threatFoxMeasurementProjector } from "./threatfox.js";
+const projectors:readonly MeasurementSourceProjector[]=[testSyntheticMeasurementProjector,cisaKevMeasurementProjector,nvdMeasurementProjector,firstEpssMeasurementProjector,threatFoxMeasurementProjector,malwareBazaarMeasurementProjector];
+export const measurementSourceProjectors=new Map<string,MeasurementSourceProjector>(projectors.map((projector)=>[projector.sourceKey,projector]));
+if(measurementSourceProjectors.size!==projectors.length)throw new Error("Duplicate NODE-3 measurement source projector key");
