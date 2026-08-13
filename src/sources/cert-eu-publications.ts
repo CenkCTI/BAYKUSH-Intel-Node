@@ -164,7 +164,7 @@ export function createCertEuPublicationAdapter(options: { fetchImpl?: typeof fet
       displayName: "CERT-EU Security Advisory Publications",
       providerName: "CERT-EU",
       upstreamOriginKey: "CERT_EU_SECURITY_ADVISORY_RSS",
-      sourceClass: "CERT_CSIRT_PUBLICATION",
+      sourceClass: "CERT_CSIRT_REPORTING",
       observationBasis: "PUBLISHED",
       authorityType: "EU_CERT",
       collectionMode: "SNAPSHOT",
