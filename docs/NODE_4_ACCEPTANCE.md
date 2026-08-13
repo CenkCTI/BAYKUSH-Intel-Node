@@ -16,9 +16,9 @@ Date: 2026-08-13 (Europe/Warsaw). No PR was merged. No temporary integration bra
 
 | Category | Status | Evidence |
 | --- | --- | --- |
-| AUTOMATED CI — PR #12 reviewed head | PASS | GitHub NODE validation was independently green at the supplied reviewed head before this pass. A new run is required for this report commit. |
-| AUTOMATED CI — PR #11 acceptance head | NOT_PERFORMED | Local validation passed; the new GitHub run must finish before CI can be called PASS. |
-| AUTOMATED CI — CİTEM acceptance head | NOT_PERFORMED | Local validation passed; GitHub and Vercel must finish before they can be called PASS. |
+| AUTOMATED CI — PR #12 report commit | PASS | GitHub NODE validation run `31724169477` passed for `3034273`. |
+| AUTOMATED CI — PR #11 acceptance head | PASS | GitHub NODE validation run `31723305191` passed for `47e4471`. |
+| AUTOMATED CI — CİTEM acceptance head | PASS | GitHub validation run `31723867003` and Vercel preview passed for `21266b0`. |
 | LOCAL CODE — combined Node | PASS | `npm run lint`; `npm run typecheck`; `npm test` (23 files, 151 tests); `npm run build`. |
 | LOCAL CODE — PR #11 | PASS | `npm run lint`; `npm run typecheck`; `npm test` (21 files, 145 tests); `npm run build`; `docker compose config --quiet`. |
 | LOCAL CODE — CİTEM | PASS | `npm run lint` (0 errors, 8 pre-existing warnings); `npx tsc --noEmit --incremental false`; `npm test` (132 files, 940 tests); `npm run build`. |
