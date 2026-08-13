@@ -32,7 +32,7 @@ async function main() {
   const segment = await pool.query<{ id: string }>(`INSERT INTO historical_backfill_segments(request_id,source_definition_id,segment_index,segment_kind,window_start,window_end)
     VALUES($1,$2,0,'INTERVAL','2026-08-01','2026-08-02') RETURNING id`, [request.rows[0]?.id, sourceId]);
   const historical = await pool.query<{ id: string }>(`INSERT INTO collection_runs(source_definition_id,trigger,purpose,state,idempotency_key,historical_backfill_segment_id)
-    VALUES($1,'RECOVERY','HISTORICAL_BACKFILL','QUEUED',$2,$3) RETURNING id`, [sourceId, `node4-isolation-${Date.now()}`, segment.rows[0]?.id]);
+    VALUES($1,'RECOVERY','HISTORICAL_BACKFILL','QUEUED',$2,$3) RETURNING id`, [sourceId, `historical-backfill:${segment.rows[0]?.id}`, segment.rows[0]?.id]);
 
   assert.equal(await claimNextRun("live-worker", 60), null, "normal worker must exclude historical runs");
   assert.equal(await enqueueDueRuns([sourceKey], 1), 1, "historical work must not block live scheduling");
