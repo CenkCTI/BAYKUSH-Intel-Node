@@ -4,6 +4,7 @@ import { createCisaKevAdapter } from "./cisa-kev.js";
 import { createFeodoTrackerAdapter } from "./feodo-tracker.js";
 import { createFirstEpssAdapter } from "./first-epss.js";
 import { createMalwareBazaarAdapter } from "./malwarebazaar.js";
+import { node5Adapters } from "./node5-adapters.js";
 import { createNvdCveAdapterV2 } from "./nvd-cve-normalization-v2.js";
 import { createSslblCertificateAdapter } from "./sslbl-certificate.js";
 import { createTestSyntheticAdapter } from "./test-synthetic.js";
@@ -18,6 +19,7 @@ const adapters = [
   createMalwareBazaarAdapter(config.malwareBazaarAuthKey === undefined ? {} : { authKey: config.malwareBazaarAuthKey }),
   createFeodoTrackerAdapter(),
   createSslblCertificateAdapter(),
+  ...node5Adapters,
 ];
 
 for (const adapter of adapters) assertAdapterContract(adapter);
