@@ -57,6 +57,7 @@ const scorePayloadSchema = z.object({
   modelVersion: z.string().min(1).max(128),
   datasetContentSha256: sha256Schema,
   captureProfile: captureProfileSchema,
+  sourceArtifactUrl: z.string().url().optional(),
   sourceExtras: z.record(z.string(), z.string()).optional(),
 }).strict();
 
@@ -98,7 +99,7 @@ const checkpointSchema = z.object({
 }).strict();
 type FirstEpssCheckpoint = z.infer<typeof checkpointSchema>;
 
-const workDescriptorSchema = z.object({
+const currentWorkDescriptorSchema = z.object({
   version: z.literal(1),
   mode: z.literal("CURRENT"),
   previousDatasetDate: dateSchema.nullable(),
@@ -108,7 +109,13 @@ const workDescriptorSchema = z.object({
   ifNoneMatch: z.string().max(2_048).nullable(),
   ifModifiedSince: z.string().max(2_048).nullable(),
 }).strict();
+const historicalWorkDescriptorSchema = z.object({ version: z.literal(1), mode: z.literal("HISTORICAL"), datasetDate: dateSchema }).strict();
+const workDescriptorSchema = z.discriminatedUnion("mode", [currentWorkDescriptorSchema, historicalWorkDescriptorSchema]);
 type FirstEpssWorkDescriptor = z.infer<typeof workDescriptorSchema>;
+
+export function firstEpssHistoricalWorkDescriptor(datasetDate: string): unknown {
+  return historicalWorkDescriptorSchema.parse({ version: 1, mode: "HISTORICAL", datasetDate });
+}
 
 const fetchedRecordSchema = z.object({
   kind: z.enum(["SCORE", "DATASET_MANIFEST"]),
@@ -448,7 +455,7 @@ export function normalizeFirstEpssPayload(input: unknown): CanonicalEvidenceDraf
       { predicate: "baykush.capture_minimum_epss", value: payload.captureProfile.minimumEpss },
       { predicate: "baykush.capture_max_records", value: payload.captureProfile.maximumRecords },
     ],
-    references: [FIRST_EPSS_CURRENT_URL.toString()],
+    references: [payload.sourceArtifactUrl ?? FIRST_EPSS_CURRENT_URL.toString()],
   }];
 }
 
@@ -532,11 +539,13 @@ export function createFirstEpssAdapter(options: FirstEpssAdapterOptions = {}): S
         accept: "application/gzip, application/x-gzip, application/octet-stream",
         "user-agent": USER_AGENT,
       };
-      if (descriptor.ifNoneMatch) headers["if-none-match"] = descriptor.ifNoneMatch;
-      if (descriptor.ifModifiedSince) headers["if-modified-since"] = descriptor.ifModifiedSince;
+      if (descriptor.mode === "CURRENT" && descriptor.ifNoneMatch) headers["if-none-match"] = descriptor.ifNoneMatch;
+      if (descriptor.mode === "CURRENT" && descriptor.ifModifiedSince) headers["if-modified-since"] = descriptor.ifModifiedSince;
+
+      const artifactUrl = descriptor.mode === "CURRENT" ? FIRST_EPSS_CURRENT_URL : new URL(`https://epss.empiricalsecurity.com/epss_scores-${descriptor.datasetDate}.csv.gz`);
 
       const artifact = await fetchBoundedArtifact({
-        url: FIRST_EPSS_CURRENT_URL,
+        url: artifactUrl,
         allowedEndpoints: [
           { hostname: "epss.empiricalsecurity.com", path: /^\/epss_scores-current\.csv\.gz$/ },
           { hostname: "epss.empiricalsecurity.com", path: /^\/epss_scores-\d{4}-\d{2}-\d{2}\.csv\.gz$/ },
@@ -557,6 +566,7 @@ export function createFirstEpssAdapter(options: FirstEpssAdapterOptions = {}): S
       });
 
       if (artifact.status === 304) {
+        if (descriptor.mode === "HISTORICAL") throw new CollectionFailure("PROVIDER_ERROR", "FIRST EPSS historical artifact unexpectedly returned 304", true);
         if (!descriptor.previousDatasetDate || !descriptor.previousContentSha256) {
           throw new CollectionFailure("PROVIDER_ERROR", "FIRST EPSS returned 304 without a completed local dataset", true);
         }
@@ -580,11 +590,14 @@ export function createFirstEpssAdapter(options: FirstEpssAdapterOptions = {}): S
       if (!parsed || !artifact.compressedSha256 || artifact.compressedBytes <= 0) {
         throw new CollectionFailure("PROVIDER_ERROR", "FIRST EPSS artifact produced no parsed dataset", true);
       }
-      if (descriptor.previousDatasetDate && parsed.metadata.datasetDate < descriptor.previousDatasetDate) {
+      if (descriptor.mode === "HISTORICAL" && parsed.metadata.datasetDate !== descriptor.datasetDate) {
+        throw new CollectionFailure("SCHEMA_ERROR", "FIRST EPSS historical artifact date does not match the requested dataset date", false);
+      }
+      if (descriptor.mode === "CURRENT" && descriptor.previousDatasetDate && parsed.metadata.datasetDate < descriptor.previousDatasetDate) {
         throw new CollectionFailure("SOURCE_SNAPSHOT_CHANGED", "FIRST EPSS current dataset date regressed behind the completed checkpoint", true);
       }
       if (
-        descriptor.previousTotalRows !== null &&
+        descriptor.mode === "CURRENT" && descriptor.previousTotalRows !== null &&
         descriptor.previousModelVersion === parsed.metadata.modelVersion &&
         parsed.totalRows < Math.floor(descriptor.previousTotalRows * SAME_MODEL_ROW_DROP_RATIO)
       ) {
@@ -593,7 +606,7 @@ export function createFirstEpssAdapter(options: FirstEpssAdapterOptions = {}): S
 
       const nextCheckpoint = checkpointFromDataset({ parsed, etag: artifact.etag, lastModified: artifact.lastModified });
       if (
-        descriptor.previousDatasetDate === parsed.metadata.datasetDate &&
+        descriptor.mode === "CURRENT" && descriptor.previousDatasetDate === parsed.metadata.datasetDate &&
         descriptor.previousContentSha256 === parsed.datasetContentSha256
       ) {
         return { records: [], nextWork: null, nextCheckpoint, complete: true };
@@ -639,6 +652,7 @@ export function createFirstEpssAdapter(options: FirstEpssAdapterOptions = {}): S
           modelVersion: parsed.metadata.modelVersion,
           datasetContentSha256: parsed.datasetContentSha256,
           captureProfile,
+          ...(descriptor.mode === "HISTORICAL" ? { sourceArtifactUrl: sourceUrl } : {}),
           ...(extras ? { sourceExtras: extras } : {}),
         });
         records.push({ kind: "SCORE", payload, sourceUrl });

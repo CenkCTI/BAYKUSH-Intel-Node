@@ -74,6 +74,18 @@ services:
         condition: service_completed_successfully
     restart: unless-stopped
 
+  backfill:
+    build: .
+    command: ["node", "dist/backfill/main.js"]
+    environment:
+      <<: *node-env
+      NODE_INSTANCE_ID: backfill-1
+      NVD_API_KEY: ${NVD_API_KEY:-}
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    restart: unless-stopped
+
   normalizer:
     build: .
     command: ["node", "dist/normalizer/main.js"]

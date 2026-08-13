@@ -1,0 +1,9 @@
+import { beforeAll,describe,expect,it } from "vitest";
+import type * as FirstEpss from '../src/sources/first-epss.js';
+import type * as Nvd from '../src/sources/nvd-cve.js';
+let firstEpssHistoricalWorkDescriptor:typeof FirstEpss.firstEpssHistoricalWorkDescriptor;
+let normalizeFirstEpssPayload:typeof FirstEpss.normalizeFirstEpssPayload;
+let nvdHistoricalWorkDescriptor:typeof Nvd.nvdHistoricalWorkDescriptor;
+beforeAll(async()=>{process.env.DATABASE_URL='postgres://unused:unused@127.0.0.1:1/unused';({firstEpssHistoricalWorkDescriptor,normalizeFirstEpssPayload}=await import('../src/sources/first-epss.js'));({nvdHistoricalWorkDescriptor}=await import('../src/sources/nvd-cve.js'));});
+
+describe('NODE-4 provider historical descriptors',()=>{it('creates fixed NVD pagination state',()=>{expect(nvdHistoricalWorkDescriptor('2026-08-01T00:00:00.000Z','2026-08-02T00:00:00.000Z',{startIndex:2000,expectedTotalResults:3000,restartCount:1})).toMatchObject({windowStart:'2026-08-01T00:00:00.000Z',windowEnd:'2026-08-02T00:00:00.000Z',targetEnd:'2026-08-02T00:00:00.000Z',startIndex:2000,expectedTotalResults:3000,restartCount:1});});it('selects one official EPSS historical dataset date',()=>{expect(firstEpssHistoricalWorkDescriptor('2026-08-01')).toEqual({version:1,mode:'HISTORICAL',datasetDate:'2026-08-01'});});it('preserves the actual historical artifact reference in new evidence',()=>{const [record]=normalizeFirstEpssPayload({kind:'EPSS_SCORE',cve:'CVE-2026-1000',epss:'0.2',percentile:'0.8',scoreDate:'2026-08-01',modelVersion:'v2026.03.14',datasetContentSha256:'a'.repeat(64),captureProfile:{key:'EPSS_HIGH_SIGNAL_V1',minimumEpss:0.1,maximumRecords:2500,ordering:['epss_desc','percentile_desc','cve_asc']},sourceArtifactUrl:'https://epss.empiricalsecurity.com/epss_scores-2026-08-01.csv.gz'});expect(record?.references).toEqual(['https://epss.empiricalsecurity.com/epss_scores-2026-08-01.csv.gz']);});});

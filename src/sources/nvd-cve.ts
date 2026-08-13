@@ -99,6 +99,11 @@ const workDescriptorSchema = activeWindowSchema.extend({
 }).strict();
 type NvdWorkDescriptor = z.infer<typeof workDescriptorSchema>;
 
+export function nvdHistoricalWorkDescriptor(windowStart: string, windowEnd: string, checkpoint: unknown = {}): unknown {
+  const saved = z.object({ startIndex: z.number().int().nonnegative().default(0), expectedTotalResults: z.number().int().nonnegative().nullable().default(null), restartCount: z.number().int().nonnegative().max(NVD_MAX_WINDOW_RESTARTS).default(0), notBeforeRequestAt: internalDateTimeSchema.nullable().default(null) }).parse(checkpoint);
+  return workDescriptorSchema.parse({ windowStart, windowEnd, targetEnd: windowEnd, completedThroughBeforeWindow: null, ...saved });
+}
+
 const fetchedRecordSchema = z.object({
   kind: z.literal("CVE"),
   payload: nvdCveSchema,

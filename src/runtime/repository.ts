@@ -75,6 +75,7 @@ export async function enqueueDueRuns(sourceKeys: readonly string[], limit = 10):
          AND NOT EXISTS (
            SELECT 1 FROM collection_runs r
            WHERE r.source_definition_id = d.id
+             AND r.purpose <> 'HISTORICAL_BACKFILL'
              AND r.state IN ('QUEUED','RUNNING')
          )
        ORDER BY s.next_due_at
@@ -123,8 +124,9 @@ export async function claimNextRun(workerId: string, leaseSeconds: number): Prom
       `SELECT r.id, r.source_definition_id, d.source_key, r.trigger, r.purpose
        FROM collection_runs r
        JOIN source_definitions d ON d.id = r.source_definition_id
-       WHERE (r.state = 'QUEUED' AND r.available_at <= now())
-          OR (r.state = 'RUNNING' AND r.lease_expires_at < now())
+       WHERE r.purpose <> 'HISTORICAL_BACKFILL'
+         AND ((r.state = 'QUEUED' AND r.available_at <= now())
+           OR (r.state = 'RUNNING' AND r.lease_expires_at < now()))
        ORDER BY r.created_at
        FOR UPDATE OF r SKIP LOCKED
        LIMIT 1`,
