@@ -1,10 +1,11 @@
 import type { AddressInfo } from "node:net";
+import type { createApiServer as CreateApiServer } from "../src/api/server.js";
 import { afterEach, beforeAll, describe, expect, it } from "vitest";
 import type { Server } from "node:http";
 
 const TOKEN = "node4-test-token-that-is-at-least-32-bytes";
 const servers: Server[] = [];
-let createApiServer: typeof import("../src/api/server.js").createApiServer;
+let createApiServer: typeof CreateApiServer;
 
 beforeAll(async () => {
   process.env.DATABASE_URL = "postgres://unused:unused@127.0.0.1:1/unused";
