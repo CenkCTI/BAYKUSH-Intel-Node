@@ -228,7 +228,7 @@ async function factRows(
   return result.rows;
 }
 
-function aggregate(kind: MeasurementComparisonKind, rows: readonly FactRow[]): number | null {
+export function aggregateComparisonRows(kind: MeasurementComparisonKind, rows: readonly FactRow[]): number | null {
   if (kind === "SUM_EVENTS") return rows.length;
   if (kind === "EXACT_DISTINCT_QUERY") {
     return new Set(
@@ -242,6 +242,20 @@ function aggregate(kind: MeasurementComparisonKind, rows: readonly FactRow[]): n
     return Number.isFinite(number) ? number : null;
   }
   return null;
+}
+
+export async function summarizeMeasurementPeriod(input: { measurementKey: string; from: string; to: string }) {
+  const registration = getMeasurementRegistration(input.measurementKey);
+  if (!registration || registration.definition.visibility !== "PUBLIC") throw new Error("Unsupported measurement");
+  const period = parseRange(input.from, input.to);
+  const policy = registration.definition.comparisonPolicy;
+  if (policy.kind === "NONE") return { measurementKey: input.measurementKey, value: null, status: "UNSUPPORTED" as const, reason: "COMPARISON_POLICY_NONE" };
+  if (policy.requireCompleteCoverage && !(await periodComparable(input.measurementKey, period.from, period.to))) {
+    return { measurementKey: input.measurementKey, value: null, status: "INSUFFICIENT_COVERAGE" as const, reason: "PERIOD_NOT_FULLY_COVERED" };
+  }
+  const rows = await factRows(await activeCalculationId(input.measurementKey), period.from, period.to, registration.definition.timePrecision === "DATE");
+  const value = aggregateComparisonRows(policy.kind, rows);
+  return { measurementKey: input.measurementKey, value, status: value === null ? "UNAVAILABLE" as const : "AVAILABLE" as const, reason: value === null ? "SUMMARY_VALUE_UNAVAILABLE" : null };
 }
 
 function modelContext(rows: readonly FactRow[]): {
@@ -347,8 +361,8 @@ export async function comparePreviousPeriod(input: {
     }
   }
 
-  const currentValue = aggregate(policy.kind, currentRows);
-  const previousValue = aggregate(policy.kind, previousRows);
+  const currentValue = aggregateComparisonRows(policy.kind, currentRows);
+  const previousValue = aggregateComparisonRows(policy.kind, previousRows);
   if (currentValue === null || previousValue === null) {
     return {
       measurementKey: input.measurementKey,

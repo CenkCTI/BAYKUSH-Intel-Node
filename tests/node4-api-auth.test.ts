@@ -58,6 +58,13 @@ describe("NODE-4 authenticated API boundary", () => {
     expect((invalid.body.error as { code: string }).code).toBe("INVALID_REQUEST");
   });
 
+  it("bounds factual changes queries before database access", async () => {
+    const tooLarge=await request("/v1/techint/changes?from=2026-01-01T00%3A00%3A00.000Z&to=2026-02-01T00%3A00%3A00.001Z",undefined,TOKEN);
+    expect(tooLarge.response.status).toBe(400);expect((tooLarge.body.error as {code:string}).code).toBe("RANGE_TOO_LARGE");
+    const invalidLimit=await request("/v1/techint/changes?limit=101",undefined,TOKEN);expect(invalidLimit.response.status).toBe(400);
+    const invalidCursor=await request("/v1/techint/changes?cursor=not-opaque",undefined,TOKEN);expect(invalidCursor.response.status).toBe(400);
+  });
+
   it("keeps public liveness minimal", async () => {
     const health = await request("/v1/health");
     expect(health.response.status).toBe(200);
