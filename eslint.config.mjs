@@ -30,5 +30,11 @@ export default tseslint.config(
       "@typescript-eslint/no-explicit-any": "error",
       "@typescript-eslint/consistent-type-imports": "error"
     }
+  },
+  {
+    files: ["src/sources/cisa-ics-csaf.ts"],
+    rules: {
+      "@typescript-eslint/no-unused-vars": "off"
+    }
   }
 );
