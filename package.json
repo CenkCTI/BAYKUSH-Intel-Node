@@ -23,6 +23,7 @@
     "test:node2g": "tsx scripts/test-node2g.ts",
     "test:node2g-resilience": "tsx scripts/test-node2g-resilience.ts",
     "test:node3": "tsx scripts/test-node3-measurement-backbone.ts",
+    "test:node4-backfill": "tsx scripts/test-node4-backfill-isolation.ts",
     "node2g:status": "tsx scripts/node2g-status.ts",
     "node2g:report": "tsx scripts/node2g-report.ts",
     "node2g:export-node": "tsx scripts/node2g-export-node.ts",

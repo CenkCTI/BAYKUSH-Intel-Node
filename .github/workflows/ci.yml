@@ -44,6 +44,7 @@ jobs:
         run: |
           npm run db:migrate
           npm run test:migration
+          npm run test:node4-backfill
       - name: Runtime acceptance
         run: npm run test:runtime
       - name: NODE-2A production foundation acceptance
