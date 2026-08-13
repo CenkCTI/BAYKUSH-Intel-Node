@@ -1,0 +1,25 @@
+services:
+  measurement:
+    build:
+      context: .
+    command: ["node", "dist/measurement/main.js"]
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgres://baykush:baykush@postgres:5432/baykush
+      NODE_INSTANCE_ID: ${MEASUREMENT_INSTANCE_ID:-measurement-1}
+      HEARTBEAT_INTERVAL_MS: ${HEARTBEAT_INTERVAL_MS:-10000}
+      ENABLE_TEST_SYNTHETIC: ${ENABLE_TEST_SYNTHETIC:-false}
+      MEASUREMENT_ENABLED: ${MEASUREMENT_ENABLED:-true}
+      MEASUREMENT_TICK_MS: ${MEASUREMENT_TICK_MS:-1000}
+      MEASUREMENT_DISCOVERY_BATCH: ${MEASUREMENT_DISCOVERY_BATCH:-500}
+      MEASUREMENT_PROJECTION_BATCH: ${MEASUREMENT_PROJECTION_BATCH:-250}
+      MEASUREMENT_COVERAGE_BATCH: ${MEASUREMENT_COVERAGE_BATCH:-100}
+      MEASUREMENT_AGGREGATION_BATCH: ${MEASUREMENT_AGGREGATION_BATCH:-100}
+      MEASUREMENT_NOVELTY_BATCH: ${MEASUREMENT_NOVELTY_BATCH:-100}
+      MEASUREMENT_LEASE_SECONDS: ${MEASUREMENT_LEASE_SECONDS:-60}
+      MEASUREMENT_MAX_ATTEMPTS: ${MEASUREMENT_MAX_ATTEMPTS:-5}
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      postgres:
+        condition: service_healthy

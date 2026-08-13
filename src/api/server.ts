@@ -1,5 +1,8 @@
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { pool } from "../db/pool.js";
+import { handleComparisonApi } from "../measurement/comparison-api.js";
+import { handleMeasurementApi } from "../measurement/api.js";
+import { handleMeasurementProvenanceApi } from "../measurement/provenance-api.js";
 
 function sendJson(response: ServerResponse, status: number, body: unknown): void {
   response.statusCode = status;
@@ -16,10 +19,11 @@ async function health(response: ServerResponse): Promise<void> {
       instance_id: string;
       heartbeat_at: Date;
     }>(
-      `SELECT DISTINCT ON (component) component, instance_id, heartbeat_at
+      `SELECT DISTINCT ON (component) component,instance_id,heartbeat_at
        FROM runtime_heartbeats
-       ORDER BY component, heartbeat_at DESC`,
+       ORDER BY component,heartbeat_at DESC`,
     );
+
     sendJson(response, 200, {
       apiVersion: "v1",
       generatedAt: new Date().toISOString(),
@@ -32,16 +36,34 @@ async function health(response: ServerResponse): Promise<void> {
           heartbeatAt: row.heartbeat_at.toISOString(),
         })),
       },
-      meta: { serviceVersion: "node-2a-v1" },
+      meta: { serviceVersion: "node-3-v1" },
     });
   } catch {
     sendJson(response, 503, {
       apiVersion: "v1",
       generatedAt: new Date().toISOString(),
       data: { status: "degraded", database: "unavailable", heartbeats: [] },
-      meta: { serviceVersion: "node-2a-v1" },
+      meta: { serviceVersion: "node-3-v1" },
     });
   }
+}
+
+async function routeRequest(
+  request: IncomingMessage,
+  response: ServerResponse,
+  url: URL,
+): Promise<void> {
+  if (await handleMeasurementProvenanceApi(request, response, url)) return;
+  if (await handleComparisonApi(request, response, url)) return;
+  if (await handleMeasurementApi(request, response, url)) return;
+  if (response.writableEnded) return;
+
+  sendJson(response, 404, {
+    apiVersion: "v1",
+    generatedAt: new Date().toISOString(),
+    data: null,
+    error: { code: "NOT_FOUND", message: "Route not found" },
+  });
 }
 
 export function createApiServer() {
@@ -51,11 +73,15 @@ export function createApiServer() {
       void health(response);
       return;
     }
-    sendJson(response, 404, {
-      apiVersion: "v1",
-      generatedAt: new Date().toISOString(),
-      data: null,
-      error: { code: "NOT_FOUND", message: "Route not found" },
+
+    void routeRequest(request, response, url).catch(() => {
+      if (response.writableEnded) return;
+      sendJson(response, 500, {
+        apiVersion: "v1",
+        generatedAt: new Date().toISOString(),
+        data: null,
+        error: { code: "INTERNAL_ERROR", message: "Request failed" },
+      });
     });
   });
 }
