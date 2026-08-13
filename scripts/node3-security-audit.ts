@@ -1,4 +1,4 @@
-import { closePool } from "../src/db/pool.js";
+import { pool } from "../src/db/pool.js";
 import { runNode3SecurityAudit } from "../src/measurement/security-audit.js";
 
 runNode3SecurityAudit()
@@ -11,5 +11,5 @@ runNode3SecurityAudit()
     process.exitCode = 1;
   })
   .finally(async () => {
-    await closePool().catch(() => {});
+    await pool.end().catch(() => {});
   });
