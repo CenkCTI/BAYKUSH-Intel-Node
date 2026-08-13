@@ -25,12 +25,31 @@ const policies: readonly AdmissionPolicyDefinition[] = [
     operatorConstraints: "Use only the non-aggressive Feodo Tracker Botnet C2 IOC JSON dataset. Do not interpret report counts as attacks, victims, infections, bot population, attribution, or global threat level.",
     reviewedAt: "2026-08-13T21:20:00.000Z",
   },
+  {
+    sourceKey: "SSLBL_CERTIFICATE",
+    policyVersion: "sslbl-certificate-admission-v1",
+    admissionStatus: "ADMITTED",
+    valueQuestion: "Which SHA1 certificate fingerprints does SSLBL publish as associated with malicious or botnet command-and-control activity?",
+    officialAccessReference: "https://sslbl.abuse.ch/blacklist/",
+    termsReference: "https://sslbl.abuse.ch/blacklist/",
+    termsCheckedAt: "2026-08-13T21:40:00.000Z",
+    reviewDueAt: "2027-02-13T00:00:00.000Z",
+    licenseClass: "CC0-1.0",
+    commercialUseStatus: "ALLOWED",
+    redistributionStatus: "ALLOWED",
+    rawRetentionStatus: "ALLOWED",
+    canonicalRetentionStatus: "ALLOWED",
+    derivedDataStatus: "ALLOWED",
+    publicDisplayStatus: "ALLOWED",
+    attributionRequirement: "CC0 does not require attribution; BAYKUSH retains the SSLBL source reference and must not imply abuse.ch endorsement.",
+    collectionAllowed: true,
+    canonicalProjectionAllowed: true,
+    measurementProjectionAllowed: true,
+    operatorConstraints: "Use the official malicious SSL certificate SHA1 blacklist. Do not interpret certificate listings as attacks, victims, infections, TLS prevalence, attribution, or global threat level. The deprecated SSLBL C2 IP CSV is not admitted as a production source.",
+    reviewedAt: "2026-08-13T21:40:00.000Z",
+  },
 ];
 
 for (const policy of policies) assertAdmissionPolicyDefinition(policy);
-
-export const admissionPolicyRegistry = new Map<string, AdmissionPolicyDefinition>(
-  policies.map((policy) => [policy.sourceKey, policy]),
-);
-
+export const admissionPolicyRegistry = new Map<string, AdmissionPolicyDefinition>(policies.map((policy) => [policy.sourceKey, policy]));
 export const registeredAdmissionPolicies = Object.freeze([...admissionPolicyRegistry.values()]);
