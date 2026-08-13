@@ -24,3 +24,8 @@ Planned implementation sequence:
 7. NODE-4G — real-stack end-to-end acceptance.
 
 NODE-4 is complete only when a first-time CİTEM user can see retained Node history, CİTEM can remain closed while Node continues collection, backfill cannot mutate live checkpoints, coverage gaps remain explicit, and a Node outage cannot silently reactivate legacy CİTEM collection.
+# Security and truth boundary
+
+The versioned HTTP API is the only CİTEM integration boundary. CİTEM server code authenticates with a Bearer credential; browser code receives neither the credential nor Node database access. Node measurements are rendered directly and are not copied into or recalculated by CİTEM's legacy anomaly/history engine.
+
+Public liveness is deliberately minimal. Authenticated source status keeps operational health, freshness, selected-range coverage, data availability, and historical backfill state distinct.
