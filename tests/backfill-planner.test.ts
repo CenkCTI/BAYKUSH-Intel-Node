@@ -1,7 +1,13 @@
 import { describe, expect, it } from "vitest";
 import { planFirstEpssHistoricalSegments, planNvdHistoricalSegments } from "../src/backfill/planner.js";
+import { postgresDateOnly } from "../src/backfill/types.js";
 
 describe("NODE-4 historical backfill planner", () => {
+  it("preserves PostgreSQL date-only values returned as Date objects", () => {
+    expect(postgresDateOnly(new Date("2026-08-12T00:00:00.000Z"))).toBe("2026-08-12");
+    expect(postgresDateOnly("2026-08-12")).toBe("2026-08-12");
+  });
+
   it("splits NVD history into bounded 24-hour intervals", () => {
     const segments = planNvdHistoricalSegments("2026-08-01T00:00:00Z", "2026-08-03T12:00:00Z");
     expect(segments).toEqual([
