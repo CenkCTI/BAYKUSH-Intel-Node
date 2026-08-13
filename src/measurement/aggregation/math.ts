@@ -55,3 +55,10 @@ export function validZeroAllowed(input: { coveragePolicy: string; liveCoverage: 
   if (input.coveragePolicy === "SOURCE_COVERAGE_REQUIRED" || input.coveragePolicy === "SNAPSHOT_CONFIRMATION_REQUIRED") return input.liveCoverage === "COMPLETE";
   return input.dataAvailability === "AVAILABLE";
 }
+
+export function numericValueAllowed(input: { coveragePolicy: string; liveCoverage: string; dataAvailability: string }): boolean {
+  if (input.coveragePolicy === "SOURCE_COVERAGE_REQUIRED" || input.coveragePolicy === "SNAPSHOT_CONFIRMATION_REQUIRED") {
+    return input.liveCoverage !== "NO_COVERAGE";
+  }
+  return input.dataAvailability === "AVAILABLE" || input.dataAvailability === "PARTIAL";
+}

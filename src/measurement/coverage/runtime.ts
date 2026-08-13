@@ -695,8 +695,8 @@ async function evaluateCoverageBucket(bucket: DirtyCoverageBucket): Promise<Retu
      FROM collection_runs
      WHERE source_definition_id=$1
        AND scheduled_for IS NOT NULL
-       AND scheduled_for >= $2 - ($4::text||' seconds')::interval
-       AND scheduled_for < $3 + ($4::text||' seconds')::interval
+       AND scheduled_for >= $2::timestamptz - ($4::text||' seconds')::interval
+       AND scheduled_for < $3::timestamptz + ($4::text||' seconds')::interval
      ORDER BY scheduled_for,created_at`,
     [bucket.sourceDefinitionId, bucket.bucketStart, bucket.bucketEnd, maxGraceSeconds],
   );

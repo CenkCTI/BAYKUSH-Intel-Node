@@ -46,6 +46,11 @@ async function recomputeEntityHistory(input: {
   acquisitionBasis: AcquisitionBasis;
   canonicalRecordId: string;
 }): Promise<ChangedEntityHistory | null> {
+  await input.client.query(
+    `SELECT pg_advisory_xact_lock(hashtextextended($1,0))`,
+    [`${input.entityType}:${input.entityKey}`],
+  );
+
   const observations = await input.client.query<{
     observation_key: string;
     current_revision_id: string;
@@ -72,14 +77,14 @@ async function recomputeEntityHistory(input: {
     first_source_definition_id: string;
     first_source_key: string;
   }>(
-    `SELECT head.current_revision_id,revision.revision_number,
-            revision.input_fingerprint,head.first_source_definition_id,
+    `SELECT revision.id AS current_revision_id,revision.revision_number,
+            revision.input_fingerprint,revision.first_source_definition_id,
             source.source_key AS first_source_key
-     FROM entity_history_heads head
-     JOIN entity_history_revisions revision ON revision.id=head.current_revision_id
-     JOIN source_definitions source ON source.id=head.first_source_definition_id
-     WHERE head.entity_type=$1 AND head.entity_key=$2
-     FOR UPDATE OF head`,
+     FROM entity_history_revisions revision
+     JOIN source_definitions source ON source.id=revision.first_source_definition_id
+     WHERE revision.entity_type=$1 AND revision.entity_key=$2
+     ORDER BY revision.revision_number DESC
+     LIMIT 1`,
     [input.entityType, input.entityKey],
   );
   const prior = current.rows[0];

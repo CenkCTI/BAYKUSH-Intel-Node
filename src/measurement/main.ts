@@ -88,14 +88,15 @@ async function measurementLoop(): Promise<void> {
   }
 }
 
-async function shutdown(signal: string): Promise<void> {
+function requestShutdown(signal: string): void {
+  if (stopping) return;
   console.log(`measurement received ${signal}; shutting down`);
   stopping = true;
   stopHeartbeat();
-  await pool.end();
 }
 
-process.once("SIGINT", () => void shutdown("SIGINT"));
-process.once("SIGTERM", () => void shutdown("SIGTERM"));
+process.once("SIGINT", () => requestShutdown("SIGINT"));
+process.once("SIGTERM", () => requestShutdown("SIGTERM"));
 
 await measurementLoop();
+await pool.end();

@@ -103,7 +103,8 @@ export async function discoverProjectionJobs(limit = 500): Promise<number> {
        CROSS JOIN measurement_definition_heads heads
        JOIN measurement_definitions definition ON definition.id=heads.active_definition_id
        JOIN measurement_calculation_versions calculation ON calculation.id=heads.active_calculation_id
-       WHERE definition.source_scope ? source.source_key
+       WHERE source.enabled = true
+         AND definition.source_scope ? source.source_key
          AND definition.record_kind_scope ? canonical.record_kind
          AND NOT EXISTS (
            SELECT 1 FROM measurement_projection_jobs existing
@@ -131,7 +132,8 @@ export async function discoverProjectionJobs(limit = 500): Promise<number> {
        CROSS JOIN measurement_definition_heads heads
        JOIN measurement_definitions definition ON definition.id=heads.active_definition_id
        JOIN measurement_calculation_versions calculation ON calculation.id=heads.active_calculation_id
-       WHERE definition.source_scope ? source.source_key
+       WHERE source.enabled = true
+         AND definition.source_scope ? source.source_key
          AND definition.measurement_key=ANY($1::text[])
          AND NOT EXISTS (
            SELECT 1 FROM measurement_projection_jobs existing
@@ -148,7 +150,13 @@ export async function discoverProjectionJobs(limit = 500): Promise<number> {
   });
 }
 
-async function claimProjectionJob(workerId: string): Promise<ClaimedProjectionJob | null> {
+const projectionSourceKeys = [...measurementSourceProjectors.keys()];
+let projectionSourceCursor = 0;
+
+async function claimProjectionJobForSource(
+  workerId: string,
+  sourceKey: string,
+): Promise<ClaimedProjectionJob | null> {
   return withTransaction(async (client) => {
     const selected = await client.query<{
       id: string;
@@ -169,11 +177,16 @@ async function claimProjectionJob(workerId: string): Promise<ClaimedProjectionJo
        JOIN measurement_calculation_versions calculation ON calculation.id=job.measurement_calculation_id
        JOIN measurement_definitions definition ON definition.id=calculation.measurement_definition_id
        JOIN source_definitions source ON source.id=job.source_definition_id
-       WHERE (job.state='QUEUED' AND job.available_at<=now())
-          OR (job.state='RUNNING' AND job.lease_expires_at<now())
+       WHERE source.source_key=$1
+         AND source.enabled = true
+         AND (
+           (job.state='QUEUED' AND job.available_at<=now())
+           OR (job.state='RUNNING' AND job.lease_expires_at<now())
+         )
        ORDER BY job.created_at
        FOR UPDATE OF job SKIP LOCKED
        LIMIT 1`,
+      [sourceKey],
     );
 
     const row = selected.rows[0];
@@ -202,6 +215,24 @@ async function claimProjectionJob(workerId: string): Promise<ClaimedProjectionJo
       attemptCount: claimed.rows[0]?.attempt_count ?? row.attempt_count + 1,
     };
   });
+}
+
+async function claimProjectionJob(workerId: string): Promise<ClaimedProjectionJob | null> {
+  if (projectionSourceKeys.length === 0) return null;
+
+  for (let offset = 0; offset < projectionSourceKeys.length; offset += 1) {
+    const index = (projectionSourceCursor + offset) % projectionSourceKeys.length;
+    const sourceKey = projectionSourceKeys[index];
+    if (!sourceKey) continue;
+
+    const job = await claimProjectionJobForSource(workerId, sourceKey);
+    if (!job) continue;
+
+    projectionSourceCursor = (index + 1) % projectionSourceKeys.length;
+    return job;
+  }
+
+  return null;
 }
 
 async function loadCanonicalInput(job: ClaimedProjectionJob): Promise<CanonicalProjectionInput> {
