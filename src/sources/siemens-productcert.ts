@@ -23,11 +23,6 @@ const contentSchema = z.object({
   type: z.string().max(256).optional(),
 }).passthrough();
 
-const propertySchema = z.object({
-  name: z.string().max(256),
-  value: z.string().max(4096),
-}).passthrough();
-
 const entrySchema = z.object({
   id: z.string().min(1).max(2_048),
   title: z.string().min(1).max(8_192),
@@ -36,7 +31,6 @@ const entrySchema = z.object({
   content: contentSchema,
   link: z.array(linkSchema).max(32).optional(),
   summary: z.unknown().optional(),
-  property: z.array(propertySchema).max(32).optional(),
 }).passthrough();
 type SiemensFeedEntry = z.infer<typeof entrySchema>;
 
@@ -85,9 +79,8 @@ function advisoryIdentity(entry: SiemensFeedEntry): string {
   return `ROLIE:${sha256(entry.id).slice(0, 24)}`;
 }
 
-function hashProperty(entry: SiemensFeedEntry): string | null {
-  const value = entry.property?.find((property) => property.name.toLowerCase().includes("hash"))?.value ?? null;
-  return value;
+function documentHashReference(entry: SiemensFeedEntry): string | null {
+  return entry.link?.find((link) => link.rel?.toLowerCase() === "hash")?.href ?? null;
 }
 
 function cveIds(entry: SiemensFeedEntry): string[] {
@@ -113,7 +106,7 @@ export function normalizeSiemensProductCertEntry(input: unknown): CanonicalEvide
       { predicate: "siemens_productcert.updated_at", value: source.updated },
       { predicate: "siemens_productcert.document_url", value: source.content.src },
       { predicate: "siemens_productcert.document_type", value: source.content.type ?? null },
-      { predicate: "siemens_productcert.document_hash", value: hashProperty(source) },
+      { predicate: "siemens_productcert.hash_reference", value: documentHashReference(source) },
       { predicate: "siemens_productcert.cves_in_feed_entry", value: cves },
     ],
     references: [source.content.src],
