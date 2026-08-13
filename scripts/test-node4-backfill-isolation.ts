@@ -3,10 +3,12 @@ import { pool } from "../src/db/pool.js";
 import { claimBackfillSegment, persistBackfillPage } from "../src/backfill/repository.js";
 import { claimNextRun, enqueueDueRuns } from "../src/runtime/repository.js";
 import { adapterRegistry } from "../src/sources/registry.js";
+import { syncSourceDefinitions } from "../src/runtime/source-sync.js";
 
 const sourceKey = "TEST_NODE4_BACKFILL";
 
 async function main() {
+  await syncSourceDefinitions([...adapterRegistry.values()]);
   await pool.query(`INSERT INTO source_definitions(source_key,display_name,provider_name,upstream_origin_key,source_class,observation_basis,authority_type,collection_mode,default_poll_interval_seconds,minimum_poll_interval_seconds,supports_historical_retrieval,recovery_strategy,historical_max_window_seconds,requires_auth,credential_kind,adapter_version,semantic_contract_version,license_class,commercial_use_status,redistribution_status,attribution_requirement,terms_reference,represents,does_not_represent,enabled_by_default,enabled)
     SELECT $1,'NODE-4 isolation fixture',provider_name,'NODE4_TEST',source_class,observation_basis,'INTERNAL_TEST',collection_mode,60,60,true,recovery_strategy,historical_max_window_seconds,false,null,adapter_version,semantic_contract_version,'INTERNAL_TEST','NOT_APPLICABLE','NOT_APPLICABLE',null,null,'Isolation fixture','Production truth',false,true FROM source_definitions WHERE source_key='NVD_CVE' ON CONFLICT(source_key) DO NOTHING`, [sourceKey]);
   const source = await pool.query<{ id: string }>("SELECT id FROM source_definitions WHERE source_key=$1", [sourceKey]);
