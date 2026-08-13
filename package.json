@@ -33,18 +33,21 @@
     "node3:catalog": "tsx src/cli/node3.ts measurement-catalog",
     "node3:final-audit": "tsx src/cli/node3.ts final-audit",
     "node3:security-audit": "tsx scripts/node3-security-audit.ts",
+    "node4:backfill": "tsx src/cli/node4-backfill.ts",
     "db:migrate": "node scripts/migrate.mjs",
     "dev:api": "tsx src/api/main.ts",
     "dev:scheduler": "tsx src/scheduler/main.ts",
     "dev:worker": "tsx src/worker/main.ts",
     "dev:normalizer": "tsx src/normalizer/main.ts",
     "dev:measurement": "tsx src/measurement/main.ts",
+    "dev:backfill": "tsx src/backfill/main.ts",
     "sources": "tsx src/cli/sources.ts",
     "start:api": "node dist/api/main.js",
     "start:scheduler": "node dist/scheduler/main.js",
     "start:worker": "node dist/worker/main.js",
     "start:normalizer": "node dist/normalizer/main.js",
-    "start:measurement": "node dist/measurement/main.js"
+    "start:measurement": "node dist/measurement/main.js",
+    "start:backfill": "node dist/backfill/main.js"
   },
   "dependencies": {
     "csv-parse": "^7.0.1",
