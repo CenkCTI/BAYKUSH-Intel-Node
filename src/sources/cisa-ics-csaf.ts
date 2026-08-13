@@ -4,7 +4,6 @@ import type { CanonicalEvidenceDraft } from "../contracts/canonical.js";
 import type { SourceAdapter } from "../contracts/source.js";
 import { fetchBoundedJson, fetchBoundedSource } from "../http/source-http.js";
 import { CollectionFailure, classifyUnknownFailure } from "../runtime/failure.js";
-import { canonicalJsonStringify } from "../runtime/raw-record.js";
 
 const BRANCH_URL = new URL("https://api.github.com/repos/cisagov/CSAF/branches/develop");
 const RAW_HOST = "raw.githubusercontent.com";
@@ -111,7 +110,6 @@ const pageEntrySchema = z.object({
   sha: shaSchema,
   size: z.number().int().nonnegative().max(MAX_ADVISORY_BYTES).nullable(),
 }).strict();
-
 type PageEntry = z.infer<typeof pageEntrySchema>;
 
 const pageWorkSchema = z.object({
@@ -132,7 +130,6 @@ const discoverWorkSchema = z.object({
 }).strict();
 
 const workDescriptorSchema = z.discriminatedUnion("mode", [discoverWorkSchema, pageWorkSchema]);
-type PageWork = z.infer<typeof pageWorkSchema>;
 
 const checkpointSchema = z.object({
   version: z.literal(1),
