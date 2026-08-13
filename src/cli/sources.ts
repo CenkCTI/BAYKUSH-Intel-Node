@@ -2,34 +2,69 @@ import { pool } from "../db/pool.js";
 import { setSourceEnabled } from "../runtime/repository.js";
 import { getSourceStatus, listSourceStates, syncSourceDefinitions } from "../runtime/source-sync.js";
 import { adapterRegistry } from "../sources/registry.js";
+import {
+  assertSourceEnableAllowed,
+  getCurrentSourceAdmission,
+  listCurrentSourceAdmissions,
+} from "../sources/admission/repository.js";
+import { validateAdmissionForEnable } from "../sources/admission/policy.js";
 
 function usage(): never {
-  console.error("Usage: npm run sources -- <list|status|enable|disable> [SOURCE_KEY]");
+  console.error([
+    "Usage:",
+    "  npm run sources -- <list|status|enable|disable> [SOURCE_KEY]",
+    "  npm run sources -- admission <list|inspect|validate> [SOURCE_KEY]",
+  ].join("\n"));
   process.exitCode = 2;
   throw new Error("Invalid source CLI arguments");
 }
 
+async function admissionCommand(action: string | undefined, sourceKey: string | undefined): Promise<void> {
+  if (!action || !["list", "inspect", "validate"].includes(action)) usage();
+  if (action === "list") {
+    console.table(await listCurrentSourceAdmissions());
+    return;
+  }
+  if (!sourceKey) usage();
+  const admission = await getCurrentSourceAdmission(sourceKey);
+  if (action === "inspect") {
+    if (!admission) throw new Error(`No current admission for source: ${sourceKey}`);
+    console.dir(admission, { depth: null });
+    return;
+  }
+  const validation = validateAdmissionForEnable(admission);
+  console.dir({ sourceKey, ...validation }, { depth: null });
+  if (!validation.allowed) throw new Error(`Source ${sourceKey} admission is not enableable: ${validation.blockers.join(", ")}`);
+}
+
 async function main(): Promise<void> {
   await syncSourceDefinitions([...adapterRegistry.values()]);
-  const [command, sourceKey] = process.argv.slice(2);
-  if (!command || !["list", "status", "enable", "disable"].includes(command)) usage();
+  const [command, arg1, arg2] = process.argv.slice(2);
+  if (!command) usage();
 
-  if (command === "list") {
-    const states = await listSourceStates();
-    console.table(states);
+  if (command === "admission") {
+    await admissionCommand(arg1, arg2);
     return;
   }
 
+  if (!["list", "status", "enable", "disable"].includes(command)) usage();
+  const sourceKey = arg1;
+
+  if (command === "list") {
+    console.table(await listSourceStates());
+    return;
+  }
   if (!sourceKey) usage();
   if (!adapterRegistry.has(sourceKey)) throw new Error(`Source is not registered in this Node build: ${sourceKey}`);
 
   if (command === "status") {
     const status = await getSourceStatus(sourceKey);
     if (!status) throw new Error(`Source state not found: ${sourceKey}`);
-    console.dir(status, { depth: null });
+    console.dir({ ...status, admission: await getCurrentSourceAdmission(sourceKey) }, { depth: null });
     return;
   }
 
+  if (command === "enable") await assertSourceEnableAllowed(sourceKey);
   await setSourceEnabled(sourceKey, command === "enable");
   const states = await listSourceStates();
   const selected = states.find((state) => state.sourceKey === sourceKey);
