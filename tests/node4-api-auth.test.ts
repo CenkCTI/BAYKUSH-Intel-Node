@@ -2,6 +2,7 @@ import type { AddressInfo } from "node:net";
 import type { createApiServer as CreateApiServer } from "../src/api/server.js";
 import { afterEach, beforeAll, describe, expect, it } from "vitest";
 import type { Server } from "node:http";
+import { readFileSync } from "node:fs";
 
 const TOKEN = "node4-test-token-that-is-at-least-32-bytes";
 const servers: Server[] = [];
@@ -70,5 +71,11 @@ describe("NODE-4 authenticated API boundary", () => {
     expect(health.response.status).toBe(200);
     expect(health.body.data).toEqual({ status: "ok", apiVersion: "v1" });
     expect(JSON.stringify(health.body)).not.toMatch(/database|heartbeat|instance|token/i);
+  });
+
+  it("wires authenticated API and measurement runtimes into the standard Compose stack", () => {
+    const compose = readFileSync(new URL("../docker-compose.yml", import.meta.url), "utf8");
+    expect(compose).toMatch(/api:[\s\S]*BAYKUSH_NODE_API_TOKEN: \$\{BAYKUSH_NODE_API_TOKEN:-\}/);
+    expect(compose).toMatch(/measurement:[\s\S]*command: \["node", "dist\/measurement\/main\.js"\]/);
   });
 });
