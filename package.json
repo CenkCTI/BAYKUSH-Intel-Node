@@ -4,9 +4,7 @@
   "private": true,
   "type": "module",
   "description": "Shared intelligence data runtime for the BAYKUSH ecosystem.",
-  "engines": {
-    "node": ">=20"
-  },
+  "engines": { "node": ">=20" },
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.test.json --noEmit",
@@ -39,31 +37,21 @@
     "db:migrate": "node scripts/migrate.mjs",
     "dev:api": "tsx src/api/main.ts",
     "dev:scheduler": "tsx src/scheduler/main.ts",
-    "dev:worker": "tsx src/worker/main.ts",
+    "dev:worker": "tsx src/worker/node5-main.ts",
     "dev:normalizer": "tsx src/normalizer/main.ts",
     "dev:measurement": "tsx src/measurement/main.ts",
     "dev:backfill": "tsx src/backfill/main.ts",
     "sources": "tsx src/cli/sources.ts",
     "start:api": "node dist/api/main.js",
     "start:scheduler": "node dist/scheduler/main.js",
-    "start:worker": "node dist/worker/main.js",
+    "start:worker": "node dist/worker/node5-main.js",
     "start:normalizer": "node dist/normalizer/main.js",
     "start:measurement": "node dist/measurement/main.js",
     "start:backfill": "node dist/backfill/main.js"
   },
-  "dependencies": {
-    "csv-parse": "^7.0.1",
-    "pg": "^8.0.0",
-    "zod": "^4.0.0"
-  },
+  "dependencies": { "csv-parse": "^7.0.1", "pg": "^8.0.0", "zod": "^4.0.0" },
   "devDependencies": {
-    "@eslint/js": "^9.0.0",
-    "@types/node": "^22.0.0",
-    "@types/pg": "^8.0.0",
-    "eslint": "^9.0.0",
-    "tsx": "^4.0.0",
-    "typescript": "^5.7.0",
-    "typescript-eslint": "^8.0.0",
-    "vitest": "^3.0.0"
+    "@eslint/js": "^9.0.0", "@types/node": "^22.0.0", "@types/pg": "^8.0.0",
+    "eslint": "^9.0.0", "tsx": "^4.0.0", "typescript": "^5.7.0", "typescript-eslint": "^8.0.0", "vitest": "^3.0.0"
   }
 }
