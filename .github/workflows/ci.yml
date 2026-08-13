@@ -66,6 +66,16 @@ jobs:
         run: npm run node2g:final-audit
       - name: NODE-2G security and private-boundary audit
         run: npm run node2g:security-audit
+      - name: NODE-3 PostgreSQL measurement acceptance
+        env:
+          NODE3_ACCEPTANCE_CONFIRMED: "true"
+        run: npm run test:node3
+      - name: NODE-3 final database invariant audit
+        run: npm run node3:final-audit
+      - name: NODE-3 measurement security audit
+        run: npm run node3:security-audit
+      - name: Validate NODE-3 compose overlay
+        run: docker compose -f docker-compose.yml -f docker-compose.node3.yml config >/dev/null
       - name: Build
         run: npm run build
       - name: Build container
