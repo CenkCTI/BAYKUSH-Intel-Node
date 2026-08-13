@@ -56,6 +56,36 @@ Date: 2026-08-13 (Europe/Warsaw). No PR was merged. No temporary integration bra
 - NODE-4F: **FAIL for final acceptance** — provenance and authority tests pass, but real drill-down is blocked.
 - NODE-4G: **FAIL** — the essential real-stack path was not exercised.
 
-## Required continuation
+## 2026-08-13 real-stack continuation
 
-Run the existing Compose stack on a host with Docker socket access, preserve one ephemeral server-only token across Node and CİTEM, then execute PostgreSQL gates, authenticated read APIs, bounded real NVD/EPSS backfills, checkpoint equality, normalization/measurement, CİTEM HTTP/browser, outage and CİTEM-closed acceptance. Do not reinterpret this report as provider or real-stack PASS.
+The prior blocked results above are superseded by this isolated real-stack run. A disposable Compose project, `baykush-node4-acceptance`, was built from current `origin/main`, PR #11, then PR #12. It used `127.0.0.1:18080`, an unbound isolated PostgreSQL service, an isolated volume, and an ephemeral server-only API token. The pre-existing `baykush-intel-node-*` project was not mutated.
+
+| Real evidence | Result |
+| --- | --- |
+| Stack | PASS: PostgreSQL and API healthy; scheduler, worker, normalizer, measurement, and backfill running with fresh heartbeats. |
+| Authentication | PASS: health 200 without auth; sources 401 missing/wrong token and 200 with the ephemeral token. No token appeared in response bodies or logs. |
+| PostgreSQL read API | PASS: sources/status, summary, catalog, measurements, coverage, comparison, changes, and records exercised. 24H/7D/30D changes passed; limit 25 was honored; malformed cursor and limit 101 returned 400. Missing coverage remained null/unavailable. |
+| Live Node collection | PASS: CISA KEV accepted/inserted 1,666; NVD 2,017; FIRST EPSS 2,501. This was Node authority collection, not CİTEM legacy collection. |
+| Real NVD historical | PASS: 2026-08-12 UTC segment accepted 1,482 and inserted 569; `collection_runs.purpose=HISTORICAL_BACKFILL`; live checkpoint JSON/revision/run ID were identical before and after. |
+| NVD restart/lease | PASS: a separate 2026-08-11 segment was stopped at RUNNING attempt 1 with zero persisted records, reclaimed after lease expiry as attempt 2, and completed with 1,170 accepted/inserted. One idempotency key/run and zero duplicate raw-truth groups remained; live checkpoint stayed identical. |
+| Real FIRST EPSS historical | PASS after defect fix: dated `epss_scores-2026-08-12.csv.gz`, model `v2026.06.15`, 2,501 accepted/inserted. Dataset and selected-population SHA-256 values were persisted. Capture remained `EPSS_HIGH_SIGNAL_V1`, minimum 0.1, maximum 2,500; this is not the full EPSS population. Live checkpoint stayed identical. |
+| Normalization/measurement | PASS: real raw records flowed through normalization to canonical evidence and measurement facts/buckets; provenance revision `455cddea-e1d2-4690-970f-d27802079b65` returned 27 bounded inputs and no raw payload. |
+| Real CİTEM HTTP | PASS: PR #49 production queries and Zod schemas passed against the isolated Node for 24H, 7D, and 30D for status, measurements, changes, and comparisons. No CİTEM user ID was sent. |
+| Browser | BLOCKED: no legitimate browser test account/session fixture exists. No bypass or production user was created. |
+| Collection authority | PASS: 17 authority tests covered all five sources and enable/resume, sync, activation/tick, manual/due/work claim paths under `NODE_AUTHORITY`. |
+| Node outage | PASS: stopping only the isolated API produced typed CİTEM `UNAVAILABLE`; authority stayed blocked; restart restored all range queries. |
+| CİTEM closed while Node collects | PASS by server/process independence: NVD restart acquisition, normalization, and measurement ran with no CİTEM server process required; subsequent CİTEM HTTP queries observed Node data. |
+
+Two real defects were fixed only on existing PR #12: status serialization of PostgreSQL timestamps (`f4e6fb1`) and PostgreSQL `date` conversion for historical EPSS descriptors (`4ff3f79`). Both were pushed to the existing branch; no replacement PR was created. PR #12 validation run `31726691148` passed at `4ff3f7977916e3af94577fe3a5bb7742f2e83479`.
+
+## Final matrix
+
+- NODE-4A: **PASS**
+- NODE-4B: **PASS**
+- NODE-4C: **PASS**
+- NODE-4D: **PASS**
+- NODE-4E: **FAIL** (real browser authentication unavailable)
+- NODE-4F: **PASS**
+- NODE-4G: **FAIL** (browser gate remains blocked)
+
+Final reviewed heads: PR #11 `47e447189290ace7083bca22c8899d077a2698eb` (CI PASS), PR #12 `4ff3f7977916e3af94577fe3a5bb7742f2e83479` (CI PASS), CİTEM PR #49 `21266b06ca7e2f62646221c8107c583929f815b2` (CI and Vercel PASS). The eventual order remains #11, then #12, then #49. None was merged.
