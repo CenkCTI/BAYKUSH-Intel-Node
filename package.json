@@ -49,7 +49,7 @@
     "start:measurement": "node dist/measurement/main.js",
     "start:backfill": "node dist/backfill/main.js"
   },
-  "dependencies": { "csv-parse": "^7.0.1", "pg": "^8.0.0", "zod": "^4.0.0" },
+  "dependencies": { "csv-parse": "^7.0.1", "fast-xml-parser": "^5.2.5", "pg": "^8.0.0", "zod": "^4.0.0" },
   "devDependencies": {
     "@eslint/js": "^9.0.0", "@types/node": "^22.0.0", "@types/pg": "^8.0.0",
     "eslint": "^9.0.0", "tsx": "^4.0.0", "typescript": "^5.7.0", "typescript-eslint": "^8.0.0", "vitest": "^3.0.0"
