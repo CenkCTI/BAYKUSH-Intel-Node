@@ -1,5 +1,6 @@
 import type { AdmissionPolicyDefinition } from "./contracts.js";
 import { assertAdmissionPolicyDefinition } from "./policy.js";
+import { siemensProductCertAdmissionPolicy } from "./siemens-productcert.js";
 
 const policies: readonly AdmissionPolicyDefinition[] = [
   {
@@ -163,6 +164,7 @@ const policies: readonly AdmissionPolicyDefinition[] = [
     operatorConstraints: "Treat this source as a recent publication feed only. Do not claim complete historical coverage and do not project publication counts into authoritative cyber-activity measurements until a separate coverage contract is admitted.",
     reviewedAt: "2026-08-13T23:50:00.000Z",
   },
+  siemensProductCertAdmissionPolicy,
 ];
 
 for (const policy of policies) assertAdmissionPolicyDefinition(policy);
