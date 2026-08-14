@@ -1,6 +1,7 @@
 import { config } from "../config.js";
 import { assertAdapterContract, type SourceAdapter } from "../contracts/source.js";
 import { createCisaKevAdapter } from "./cisa-kev.js";
+import { createFeodoTrackerAdapter } from "./feodo-tracker.js";
 import { createFirstEpssAdapter } from "./first-epss.js";
 import { createMalwareBazaarAdapter } from "./malwarebazaar.js";
 import { createNvdCveAdapterV2 } from "./nvd-cve-normalization-v2.js";
@@ -17,6 +18,7 @@ const adapters = [
   createFirstEpssAdapter(),
   createThreatFoxAdapter(config.threatFoxAuthKey === undefined ? {} : { authKey: config.threatFoxAuthKey }),
   createMalwareBazaarAdapter(config.malwareBazaarAuthKey === undefined ? {} : { authKey: config.malwareBazaarAuthKey }),
+  createFeodoTrackerAdapter(),
 ];
 
 for (const adapter of adapters) assertAdapterContract(adapter);

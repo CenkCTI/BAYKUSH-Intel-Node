@@ -1,7 +1,31 @@
 import type { AdmissionPolicyDefinition } from "./contracts.js";
 import { assertAdmissionPolicyDefinition } from "./policy.js";
 
-const policies: readonly AdmissionPolicyDefinition[] = [];
+const policies: readonly AdmissionPolicyDefinition[] = [
+  {
+    sourceKey: "FEODO_TRACKER",
+    policyVersion: "feodo-tracker-admission-v1",
+    admissionStatus: "ADMITTED",
+    valueQuestion: "Which botnet command-and-control endpoints are published by Feodo Tracker in its non-aggressive IOC dataset?",
+    officialAccessReference: "https://feodotracker.abuse.ch/blocklist/",
+    termsReference: "https://feodotracker.abuse.ch/blocklist/",
+    termsCheckedAt: "2026-08-13T21:20:00.000Z",
+    reviewDueAt: "2027-02-13T00:00:00.000Z",
+    licenseClass: "CC0-1.0",
+    commercialUseStatus: "ALLOWED",
+    redistributionStatus: "ALLOWED",
+    rawRetentionStatus: "ALLOWED",
+    canonicalRetentionStatus: "ALLOWED",
+    derivedDataStatus: "ALLOWED",
+    publicDisplayStatus: "ALLOWED",
+    attributionRequirement: "CC0 does not require attribution; BAYKUSH retains the Feodo Tracker source reference and must not imply abuse.ch endorsement.",
+    collectionAllowed: true,
+    canonicalProjectionAllowed: true,
+    measurementProjectionAllowed: true,
+    operatorConstraints: "Use only the non-aggressive Feodo Tracker Botnet C2 IOC JSON dataset. Do not interpret report counts as attacks, victims, infections, bot population, attribution, or global threat level.",
+    reviewedAt: "2026-08-13T21:20:00.000Z",
+  },
+];
 
 for (const policy of policies) assertAdmissionPolicyDefinition(policy);
 
