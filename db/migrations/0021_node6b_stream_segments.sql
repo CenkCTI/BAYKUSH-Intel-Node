@@ -29,11 +29,12 @@ CREATE TABLE stream_segment_manifests (
 CREATE INDEX stream_segment_manifests_source_time_idx ON stream_segment_manifests(source_definition_id,source_time_min,source_time_max);
 
 CREATE TABLE stream_segment_payloads (
-  segment_id uuid PRIMARY KEY REFERENCES stream_segment_manifests(id) ON DELETE CASCADE,
+  segment_id uuid NOT NULL REFERENCES stream_segment_manifests(id) ON DELETE CASCADE,
   payload_compressed bytea NOT NULL,
   compression text NOT NULL CHECK (compression IN ('GZIP')),
   created_at timestamptz NOT NULL DEFAULT now(),
-  expires_at timestamptz NOT NULL
+  expires_at timestamptz NOT NULL,
+  PRIMARY KEY(segment_id, expires_at)
 ) PARTITION BY RANGE (expires_at);
 CREATE TABLE stream_segment_payloads_default PARTITION OF stream_segment_payloads DEFAULT;
 CREATE INDEX stream_segment_payloads_default_expires_idx ON stream_segment_payloads_default(expires_at);

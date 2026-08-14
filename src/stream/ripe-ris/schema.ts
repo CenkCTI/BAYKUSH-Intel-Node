@@ -1,62 +1,10 @@
 import { isIP } from "node:net";
 import { z } from "zod";
 import type { RoutingObservation } from "../contracts.js";
-
-const envelopeSchema = z.object({ type: z.string().min(1).max(64), data: z.unknown().optional() }).passthrough();
-const updateSchema = z.object({
-  type: z.literal("UPDATE"),
-  timestamp: z.number().finite().positive(),
-  id: z.string().max(512).optional(),
-  host: z.string().min(1).max(128).optional(),
-  rrc: z.string().min(1).max(128).optional(),
-  peer: z.string().max(128).optional(),
-  peer_asn: z.union([z.number().int().nonnegative(), z.string().regex(/^\d+$/)]).optional(),
-  path: z.array(z.union([z.number().int().nonnegative(), z.string(), z.array(z.union([z.number().int().nonnegative(), z.string()]))])).max(512).optional(),
-  announcements: z.array(z.object({ prefixes: z.array(z.string().min(3).max(128)).max(4096) }).passthrough()).max(4096).optional(),
-  withdrawals: z.array(z.string().min(3).max(128)).max(4096).optional(),
-}).passthrough();
-
-export type RisControlMessage = { type: string; data: unknown };
-
-function canonicalPrefix(input: string): string {
-  const [address, lengthText, ...rest] = input.trim().split("/");
-  if (!address || !lengthText || rest.length) throw new Error("Invalid CIDR prefix");
-  const version = isIP(address); if (!version) throw new Error("Invalid CIDR address");
-  const length = Number(lengthText); const max = version === 4 ? 32 : 128;
-  if (!Number.isInteger(length) || length < 0 || length > max) throw new Error("Invalid CIDR prefix length");
-  return `${address.toLowerCase()}/${length}`;
-}
-
-function asn(value: number | string | undefined): number | null {
-  if (value === undefined) return null; const parsed = typeof value === "number" ? value : Number(value);
-  return Number.isInteger(parsed) && parsed >= 0 && parsed <= 4_294_967_295 ? parsed : null;
-}
-
-function originAsns(path: unknown[] | undefined): number[] {
-  if (!path?.length) return [];
-  const last = path[path.length - 1];
-  if (Array.isArray(last)) return [];
-  const parsed = asn(typeof last === "number" || typeof last === "string" ? last : undefined);
-  return parsed === null ? [] : [parsed];
-}
-
-export function parseRisPayload(raw: string, nodeReceivedAt: string): RoutingObservation | RisControlMessage | null {
-  const envelope = envelopeSchema.parse(JSON.parse(raw));
-  if (envelope.type !== "ris_message") return { type: envelope.type, data: envelope.data ?? null };
-  const update = updateSchema.parse(envelope.data);
-  const announced = (update.announcements ?? []).flatMap((item) => item.prefixes).map(canonicalPrefix);
-  const withdrawn = (update.withdrawals ?? []).map(canonicalPrefix);
-  const sourceObservedAt = new Date(update.timestamp * 1000).toISOString();
-  const rrc = update.rrc ?? update.host ?? "UNKNOWN_RRC";
-  return {
-    messageId: update.id ?? null,
-    sourceObservedAt,
-    nodeReceivedAt,
-    rrc,
-    peerIp: update.peer ?? null,
-    peerAsn: asn(update.peer_asn),
-    announcedPrefixes: announced,
-    withdrawnPrefixes: withdrawn,
-    originAsns: originAsns(update.path),
-  };
-}
+const envelopeSchema=z.object({type:z.string().min(1).max(64),data:z.unknown().optional()}).passthrough();
+const updateSchema=z.object({type:z.literal("UPDATE"),timestamp:z.number().finite().positive(),id:z.string().max(512).optional(),host:z.string().min(1).max(128).optional(),rrc:z.string().min(1).max(128).optional(),peer:z.string().max(128).optional(),peer_asn:z.union([z.number().int().nonnegative(),z.string().regex(/^\d+$/)]).optional(),path:z.array(z.union([z.number().int().nonnegative(),z.string(),z.array(z.union([z.number().int().nonnegative(),z.string()]))])).max(512).optional(),announcements:z.array(z.object({prefixes:z.array(z.string().min(3).max(128)).max(4096)}).passthrough()).max(4096).optional(),withdrawals:z.array(z.string().min(3).max(128)).max(4096).optional()}).passthrough();
+export type RisControlMessage={type:string;data:unknown};
+function canonicalPrefix(input:string):string{const[address,lengthText,...rest]=input.trim().split("/");if(!address||!lengthText||rest.length)throw new Error("Invalid CIDR prefix");const version=isIP(address);if(!version)throw new Error("Invalid CIDR address");const length=Number(lengthText);const max=version===4?32:128;if(!Number.isInteger(length)||length<0||length>max)throw new Error("Invalid CIDR prefix length");return`${address.toLowerCase()}/${length}`;}
+function asn(value:number|string|undefined):number|null{if(value===undefined)return null;const parsed=typeof value==="number"?value:Number(value);return Number.isInteger(parsed)&&parsed>=0&&parsed<=4294967295?parsed:null;}
+function originAsns(path:unknown[]|undefined):number[]{if(!path?.length)return[];const last=path[path.length-1];if(Array.isArray(last))return[];const parsed=asn(typeof last==="number"||typeof last==="string"?last:undefined);return parsed===null?[]:[parsed];}
+export function parseRisPayload(raw:string,nodeReceivedAt:string):RoutingObservation|RisControlMessage|null{const envelope=envelopeSchema.parse(JSON.parse(raw));if(envelope.type!=="ris_message")return{type:envelope.type,data:envelope.data??null};const update=updateSchema.parse(envelope.data);const announced=(update.announcements??[]).flatMap((item)=>item.prefixes).map(canonicalPrefix);const withdrawn=(update.withdrawals??[]).map(canonicalPrefix);return{messageId:update.id??null,sourceObservedAt:new Date(update.timestamp*1000).toISOString(),nodeReceivedAt,rrc:update.rrc??update.host??"UNKNOWN_RRC",peerIp:update.peer??null,peerAsn:asn(update.peer_asn),announcedPrefixes:announced,withdrawnPrefixes:withdrawn,originAsns:originAsns(update.path)};}
