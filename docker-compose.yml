@@ -62,7 +62,7 @@ services:
 
   worker:
     build: .
-    command: ["node", "dist/worker/main.js"]
+    command: ["node", "dist/worker/node5-main.js"]
     environment:
       <<: *node-env
       NODE_INSTANCE_ID: worker-1
@@ -103,6 +103,22 @@ services:
     environment:
       <<: *node-env
       NODE_INSTANCE_ID: measurement-1
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    restart: unless-stopped
+
+  stream-worker:
+    build: .
+    command: ["node", "dist/stream/main.js"]
+    environment:
+      <<: *node-env
+      NODE_INSTANCE_ID: stream-worker-1
+      STREAM_RAW_RETENTION_HOURS: ${STREAM_RAW_RETENTION_HOURS:-48}
+      STREAM_QUEUE_MAX_MESSAGES: ${STREAM_QUEUE_MAX_MESSAGES:-50000}
+      STREAM_QUEUE_MAX_BYTES: ${STREAM_QUEUE_MAX_BYTES:-67108864}
+      STREAM_SEGMENT_MAX_MESSAGES: ${STREAM_SEGMENT_MAX_MESSAGES:-5000}
+      STREAM_SEGMENT_MAX_BYTES: ${STREAM_SEGMENT_MAX_BYTES:-4194304}
     depends_on:
       migrate:
         condition: service_completed_successfully

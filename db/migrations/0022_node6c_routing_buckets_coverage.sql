@@ -38,6 +38,15 @@ CREATE TABLE routing_minute_bucket_heads (
   CHECK (bucket_end = bucket_start + interval '1 minute')
 );
 
+CREATE TABLE routing_measurement_dirty_minutes (
+  source_definition_id uuid NOT NULL REFERENCES source_definitions(id) ON DELETE CASCADE,
+  bucket_start timestamptz NOT NULL,
+  dirty_since timestamptz NOT NULL DEFAULT now(),
+  dirty_revision bigint NOT NULL DEFAULT 1 CHECK (dirty_revision > 0),
+  PRIMARY KEY(source_definition_id,bucket_start)
+);
+CREATE INDEX routing_measurement_dirty_minutes_claim_idx ON routing_measurement_dirty_minutes(dirty_since,bucket_start);
+
 CREATE TABLE stream_coverage_interval_revisions (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   source_definition_id uuid NOT NULL REFERENCES source_definitions(id) ON DELETE RESTRICT,
