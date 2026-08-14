@@ -88,7 +88,10 @@ function serialFromUrl(value: string): string | null {
 }
 
 function publicationTime(value: string): string {
-  const milliseconds = Date.parse(value);
+  const normalized = value.trim()
+    .replace(/\sCEST$/i, " +0200")
+    .replace(/\sCET$/i, " +0100");
+  const milliseconds = Date.parse(normalized);
   if (!Number.isFinite(milliseconds)) throw new CollectionFailure("SCHEMA_ERROR", "CERT-EU feed publication time is invalid", false);
   return new Date(milliseconds).toISOString();
 }
@@ -189,7 +192,7 @@ export function createCertEuPublicationAdapter(options: { fetchImpl?: typeof fet
       },
       enabledByDefault: false,
     },
-    maxRecordsPerWorkUnit: MAX_ITEMS,
+    maxRecordsPerWorkUnit: MAX_ITEMS + 1,
     maxRawRecordBytes: 512 * 1024,
     normalizationVersion: "cert-eu-publication-normalization-v1",
     checkpointSchemaVersion: "cert-eu-publication-checkpoint-v1",

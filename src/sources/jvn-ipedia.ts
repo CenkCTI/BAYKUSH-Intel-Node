@@ -12,7 +12,7 @@ const UPDATED_FEED_URL = new URL("https://jvndb.jvn.jp/en/rss/jvndb.rdf");
 const PUBLIC_REFERENCE = "https://jvndb.jvn.jp/en/feed/";
 const TERMS_REFERENCE = "https://jvn.jp/en/rss/";
 const MAX_RESPONSE_BYTES = 8 * 1024 * 1024;
-const MAX_ENTRIES = 250;
+const MAX_ENTRIES = 1_000;
 
 const referenceSchema = z.object({
   source: z.string().max(128).nullable(),
@@ -145,7 +145,7 @@ export function parseJvnIpediaFeed(xml: string): JvnEntry[] {
   if (!isRecord(root)) throw new CollectionFailure("SCHEMA_ERROR", "JVN iPedia feed lacks rdf:RDF root", false);
   const entries = asArray(root.item).map(parseItem);
   if (entries.length > MAX_ENTRIES) {
-    throw new CollectionFailure("PAYLOAD_LIMIT_EXCEEDED", "JVN iPedia recent feed exceeds the configured entry bound", false);
+    throw new CollectionFailure("PAYLOAD_LIMIT_EXCEEDED", `JVN iPedia recent feed exceeds the configured entry bound (${entries.length} > ${MAX_ENTRIES})`, false);
   }
   return entries;
 }
@@ -248,7 +248,7 @@ export function createJvnIpediaAdapter(options: { fetchImpl?: typeof fetch } = {
       },
       enabledByDefault: false,
     },
-    maxRecordsPerWorkUnit: MAX_ENTRIES,
+    maxRecordsPerWorkUnit: MAX_ENTRIES + 1,
     maxRawRecordBytes: 512 * 1024,
     normalizationVersion: "jvn-ipedia-normalization-v1",
     checkpointSchemaVersion: "jvn-ipedia-checkpoint-v1",
@@ -281,6 +281,9 @@ export function createJvnIpediaAdapter(options: { fetchImpl?: typeof fetch } = {
         parseJvnIpediaFeed(newResponse.bytes.toString("utf8")),
         parseJvnIpediaFeed(updatedResponse.bytes.toString("utf8")),
       );
+      if (entries.length > MAX_ENTRIES) {
+        throw new CollectionFailure("PAYLOAD_LIMIT_EXCEEDED", `JVN iPedia merged recent feeds exceed the configured entry bound (${entries.length} > ${MAX_ENTRIES})`, false);
+      }
       const fingerprint = snapshotFingerprint(entries);
       const nextCheckpoint = {
         version: 1 as const,
