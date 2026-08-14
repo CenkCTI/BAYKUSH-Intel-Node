@@ -35,4 +35,5 @@ jobs:
       - name: Run bounded live provider smoke
         env:
           NODE_ENV: test
+          DATABASE_URL: postgres://unused:unused@127.0.0.1:1/unused
         run: npx tsx scripts/node5-live-provider-smoke.ts
