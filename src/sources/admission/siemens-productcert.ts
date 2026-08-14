@@ -1,0 +1,25 @@
+import type { AdmissionPolicyDefinition } from "./contracts.js";
+
+export const siemensProductCertAdmissionPolicy: AdmissionPolicyDefinition = {
+  sourceKey: "SIEMENS_PRODUCTCERT_CSAF",
+  policyVersion: "siemens-productcert-rolie-admission-v1",
+  admissionStatus: "ADMITTED",
+  valueQuestion: "Which TLP:WHITE security-advisory publications are exposed by the Siemens ProductCERT trusted-provider CSAF ROLIE feed?",
+  officialAccessReference: "https://cert-portal.siemens.com/productcert/csaf/provider-metadata.json",
+  termsReference: "https://www.siemens.com/productcert/terms-of-use",
+  termsCheckedAt: "2026-08-14T00:20:00.000Z",
+  reviewDueAt: "2027-02-14T00:00:00.000Z",
+  licenseClass: "SIEMENS_PRODUCTCERT_TERMS",
+  commercialUseStatus: "ALLOWED",
+  redistributionStatus: "ALLOWED",
+  rawRetentionStatus: "ALLOWED",
+  canonicalRetentionStatus: "ALLOWED",
+  derivedDataStatus: "ALLOWED",
+  publicDisplayStatus: "ALLOWED",
+  attributionRequirement: "Preserve the original Siemens advisory link, identify modifications, retain applicable Siemens notices and do not use Siemens marks or advisory material in a misleading way.",
+  collectionAllowed: true,
+  canonicalProjectionAllowed: true,
+  measurementProjectionAllowed: false,
+  operatorConstraints: "Use only the TLP:WHITE trusted-provider ROLIE publication feed. This revision captures publication metadata and document provenance, not the full CSAF advisory body. Do not claim complete historical coverage or convert vendor-publication counts into exploitation, attack, victim, customer exposure, remediation priority, business risk, attribution, prevalence or global threat measurements.",
+  reviewedAt: "2026-08-14T00:20:00.000Z",
+};
