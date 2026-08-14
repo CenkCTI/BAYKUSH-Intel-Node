@@ -120,8 +120,10 @@ async function latestFactTime(measurementKey: string): Promise<Date> {
 }
 
 async function requestJson(baseUrl: string, path: string, authenticated = true) {
-  const headers = authenticated ? { authorization: `Bearer ${API_TOKEN}` } : undefined;
-  const response = await fetch(`${baseUrl}${path}`, { headers });
+  const init: RequestInit = authenticated
+    ? { headers: { authorization: `Bearer ${API_TOKEN}` } }
+    : {};
+  const response = await fetch(`${baseUrl}${path}`, init);
   const body = await response.json() as { data?: unknown; error?: { code?: string }; [key: string]: unknown };
   return { response, body };
 }
