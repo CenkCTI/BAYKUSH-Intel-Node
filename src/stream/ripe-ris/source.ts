@@ -1,6 +1,6 @@
 import { sourceDefinitionSchema, type SourceDefinition } from "../../contracts/source.js";
 
-export const RIPE_RIS_LIVE_URL = "wss://ris-live.ripe.net/v1/ws/";
+export const RIPE_RIS_LIVE_URL = "wss://ris-live.ripe.net/v1/ws/?client=baykush-intelligence-node";
 
 export const ripeRisSourceDefinition: SourceDefinition = sourceDefinitionSchema.parse({
   sourceKey: "RIPE_RIS_BGP",
@@ -33,4 +33,7 @@ export const ripeRisSourceDefinition: SourceDefinition = sourceDefinitionSchema.
   enabledByDefault: false,
 });
 
-export const streamSourceKeys = Object.freeze([ripeRisSourceDefinition.sourceKey]);
+export const ripeRisSubscription = Object.freeze({
+  type: "UPDATE",
+  socketOptions: Object.freeze({ includeRaw: false, acknowledge: true }),
+});
