@@ -120,7 +120,7 @@ export function createSiemensProductCertAdapter(options: { fetchImpl?: typeof fe
       displayName: "Siemens ProductCERT CSAF Publications",
       providerName: "Siemens ProductCERT",
       upstreamOriginKey: "SIEMENS_PRODUCTCERT_TLP_WHITE_ROLIE",
-      sourceClass: "VENDOR_PSIRT_REPORTING",
+      sourceClass: "OFFICIAL_ADVISORY",
       observationBasis: "PUBLISHED",
       authorityType: "VENDOR_PSIRT",
       collectionMode: "SNAPSHOT",
