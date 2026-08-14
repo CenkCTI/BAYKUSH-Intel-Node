@@ -4,6 +4,7 @@ import { createCisaIcsCsafAdapter } from "./cisa-ics-csaf.js";
 import { createJvnIpediaAdapter } from "./jvn-ipedia.js";
 import { createMitreAttackEnterpriseAdapter } from "./mitre-attack-enterprise.js";
 import { createNode5PackageSource } from "./node5-package-source.js";
+import { createSiemensProductCertAdapter } from "./siemens-productcert.js";
 
 export const node5Adapters: SourceAdapter[] = [
   createNode5PackageSource(),
@@ -11,4 +12,5 @@ export const node5Adapters: SourceAdapter[] = [
   createJvnIpediaAdapter(),
   createCisaIcsCsafAdapter(),
   createCertEuPublicationAdapter(),
+  createSiemensProductCertAdapter(),
 ];
