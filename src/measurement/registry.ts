@@ -6,7 +6,8 @@ import {
   type MeasurementDefinition,
   type MeasurementRegistration,
 } from "./contracts.js";
-import { measurementRegistrations } from "./definitions.js";
+import { measurementRegistrations as coreMeasurementRegistrations } from "./definitions.js";
+import { node5MeasurementRegistrations } from "./node5-definitions.js";
 
 export interface RegisteredMeasurement extends MeasurementRegistration {
   definitionHash: string;
@@ -26,8 +27,13 @@ function validateRegistration(input: MeasurementRegistration): RegisteredMeasure
   };
 }
 
+const allMeasurementRegistrations: readonly MeasurementRegistration[] = [
+  ...coreMeasurementRegistrations,
+  ...node5MeasurementRegistrations,
+];
+
 export const measurementRegistry: readonly RegisteredMeasurement[] = Object.freeze(
-  measurementRegistrations.map((registration) => Object.freeze(validateRegistration(registration))),
+  allMeasurementRegistrations.map((registration) => Object.freeze(validateRegistration(registration))),
 );
 
 const registryByKey = new Map<string, RegisteredMeasurement>();
