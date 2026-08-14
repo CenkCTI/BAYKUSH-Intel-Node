@@ -33,7 +33,32 @@ jobs:
         run: npm run build
 
       - name: Run bounded live provider smoke
+        id: live-smoke
+        continue-on-error: true
         env:
           NODE_ENV: test
           DATABASE_URL: postgres://unused:unused@127.0.0.1:1/unused
         run: npx tsx scripts/node5-live-provider-smoke.ts
+
+      - name: Diagnose bounded public feed shape on failure
+        if: steps.live-smoke.outcome == 'failure'
+        shell: bash
+        run: |
+          set -euo pipefail
+          tmpdir="$(mktemp -d)"
+          trap 'rm -rf "$tmpdir"' EXIT
+
+          curl -fsS --max-filesize 8388608 https://jvndb.jvn.jp/en/rss/jvndb_new.rdf -o "$tmpdir/jvn-new.rdf"
+          curl -fsS --max-filesize 8388608 https://jvndb.jvn.jp/en/rss/jvndb.rdf -o "$tmpdir/jvn-updated.rdf"
+          echo "JVN_NEW_ITEM_COUNT=$(grep -Eo '<item([[:space:]>])' "$tmpdir/jvn-new.rdf" | wc -l | tr -d ' ')"
+          echo "JVN_UPDATED_ITEM_COUNT=$(grep -Eo '<item([[:space:]>])' "$tmpdir/jvn-updated.rdf" | wc -l | tr -d ' ')"
+
+          curl -fsS --max-filesize 4194304 https://cert.europa.eu/publications/security-advisories-rss -o "$tmpdir/cert-eu.xml"
+          echo "CERT_EU_DATE_SAMPLES_BEGIN"
+          grep -Eo '<(pubDate|dc:date)>[^<]+' "$tmpdir/cert-eu.xml" | head -n 5 || true
+          echo "CERT_EU_DATE_SAMPLES_END"
+
+      - name: Enforce live smoke result
+        if: always()
+        run: |
+          test "${{ steps.live-smoke.outcome }}" = "success"
