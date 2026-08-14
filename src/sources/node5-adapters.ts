@@ -1,4 +1,5 @@
 import type { SourceAdapter } from "../contracts/source.js";
+import { createCertEuPublicationAdapter } from "./cert-eu-publications.js";
 import { createCisaIcsCsafAdapter } from "./cisa-ics-csaf.js";
 import { createJvnIpediaAdapter } from "./jvn-ipedia.js";
 import { createMitreAttackEnterpriseAdapter } from "./mitre-attack-enterprise.js";
@@ -9,4 +10,5 @@ export const node5Adapters: SourceAdapter[] = [
   createMitreAttackEnterpriseAdapter(),
   createJvnIpediaAdapter(),
   createCisaIcsCsafAdapter(),
+  createCertEuPublicationAdapter(),
 ];
