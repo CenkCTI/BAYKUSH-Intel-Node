@@ -126,7 +126,7 @@ export function createPackageAdvisoryAdapter(options: { fetchImpl?: typeof fetch
         canonicalKey: `security-advisory:ghsa:${source.ghsa_id.toLowerCase()}`,
         entities: source.cve_id ? [{ kind: "CVE", key: source.cve_id.toUpperCase(), label: source.cve_id.toUpperCase() }] : [],
         facts,
-        references: [...new Set([source.html_url, ...source.references])].slice(0, 100),
+        references: [...new Set([source.html_url, ...source.references])].slice(0, 64),
       }];
     },
     classifyFailure(error) {

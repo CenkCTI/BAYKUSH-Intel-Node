@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { canonicalEvidenceDraftSchema } from "../src/contracts/canonical.js";
 import { createNode5PackageSource } from "../src/sources/node5-package-source.js";
 
 const reviewed = {
@@ -27,6 +28,26 @@ describe("reviewed package source runtime contract", () => {
     const canonical = adapter.normalize(raw)[0];
     expect(canonical?.recordKind).toBe("SECURITY_ADVISORY");
     expect(canonical?.canonicalKey).toContain("advisory-fixture-1");
+  });
+
+  it("bounds canonical references to the canonical contract limit", async () => {
+    const references = Array.from(
+      { length: 80 },
+      (_, index) => `https://example.com/reference-${index}`,
+    );
+    const adapter = createNode5PackageSource({
+      fetchImpl: jsonFetch([{ ...reviewed, references }]),
+      now: () => Date.parse("2026-08-13T12:00:00Z"),
+    });
+    const result = await adapter.fetch({
+      work: await adapter.plan({ checkpoint: null }),
+      signal: new AbortController().signal,
+    });
+    const raw = adapter.rawPayload(result.records[0]);
+    const canonical = canonicalEvidenceDraftSchema.parse(adapter.normalize(raw)[0]);
+
+    expect(canonical.references).toHaveLength(64);
+    expect(canonical.references[0]).toBe(reviewed.html_url);
   });
 
   it("preserves published and updated time", async () => {
