@@ -1,3 +1,5 @@
+export const ROUTING_FINALIZATION_DELAY_MS = 180_000;
+
 export interface RoutingMinuteDeltaRow {
   segmentId: string;
   captureProfileRevisionId: string | null;
@@ -17,8 +19,8 @@ export interface RoutingMinuteDeltaRow {
 export interface StreamCoverageInterval {
   sessionId: string;
   captureProfileRevisionId: string | null;
-  subscribedAt: string;
-  endedAt: string;
+  observedFrom: string;
+  observedTo: string;
 }
 
 export interface RoutingMinuteSnapshot {
@@ -73,6 +75,37 @@ export function combineRoutingMinuteDeltas(rows: readonly RoutingMinuteDeltaRow[
   };
 }
 
+export function normalizeCoverageIntervals(
+  bucketStart: string,
+  bucketEnd: string,
+  intervals: readonly StreamCoverageInterval[],
+): StreamCoverageInterval[] {
+  const start = Date.parse(bucketStart);
+  const end = Date.parse(bucketEnd);
+  return intervals
+    .map((interval) => {
+      const observedFrom = Math.max(start, Date.parse(interval.observedFrom));
+      const observedTo = Math.min(end, Date.parse(interval.observedTo));
+      return {
+        sessionId: interval.sessionId,
+        captureProfileRevisionId: interval.captureProfileRevisionId,
+        observedFrom: new Date(observedFrom).toISOString(),
+        observedTo: new Date(observedTo).toISOString(),
+      };
+    })
+    .filter((interval) => {
+      const intervalStart = Date.parse(interval.observedFrom);
+      const intervalEnd = Date.parse(interval.observedTo);
+      return Number.isFinite(intervalStart) && Number.isFinite(intervalEnd) && intervalEnd > intervalStart;
+    })
+    .sort((a, b) => {
+      const startDelta = Date.parse(a.observedFrom) - Date.parse(b.observedFrom);
+      if (startDelta !== 0) return startDelta;
+      const endDelta = Date.parse(a.observedTo) - Date.parse(b.observedTo);
+      return endDelta !== 0 ? endDelta : a.sessionId.localeCompare(b.sessionId);
+    });
+}
+
 export function evaluateMinuteCoverage(input: {
   bucketStart: string;
   bucketEnd: string;
@@ -83,19 +116,14 @@ export function evaluateMinuteCoverage(input: {
 }): MinuteCoverageEvaluation {
   const start = Date.parse(input.bucketStart);
   const end = Date.parse(input.bucketEnd);
-  const overlapping = input.intervals
-    .map((interval) => ({
-      ...interval,
-      start: Math.max(start, Date.parse(interval.subscribedAt)),
-      end: Math.min(end, Date.parse(interval.endedAt)),
-    }))
-    .filter((interval) => Number.isFinite(interval.start) && Number.isFinite(interval.end) && interval.end > interval.start)
-    .sort((a, b) => a.start - b.start || a.end - b.end || a.sessionId.localeCompare(b.sessionId));
+  const overlapping = normalizeCoverageIntervals(input.bucketStart, input.bucketEnd, input.intervals);
 
   let cursor = start;
   for (const interval of overlapping) {
-    if (interval.start > cursor) break;
-    cursor = Math.max(cursor, interval.end);
+    const intervalStart = Date.parse(interval.observedFrom);
+    const intervalEnd = Date.parse(interval.observedTo);
+    if (intervalStart > cursor) break;
+    cursor = Math.max(cursor, intervalEnd);
     if (cursor >= end) break;
   }
   const continuous = cursor >= end;
@@ -147,6 +175,14 @@ export function evaluateMinuteCoverage(input: {
     intervalProfileIds,
     continuous: false,
   };
+}
+
+export function shouldFinalizeRoutingMinute(
+  bucketEnd: string,
+  now: Date,
+  delayMs = ROUTING_FINALIZATION_DELAY_MS,
+): boolean {
+  return Date.parse(bucketEnd) + delayMs <= now.getTime();
 }
 
 export function shouldMaterializeRoutingGranularity(
