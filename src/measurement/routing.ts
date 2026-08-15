@@ -4,6 +4,8 @@ import { withTransaction } from "../db/pool.js";
 import {
   combineRoutingMinuteDeltas,
   evaluateMinuteCoverage,
+  normalizeCoverageIntervals,
+  ROUTING_FINALIZATION_DELAY_MS,
   shouldMaterializeRoutingGranularity,
   type RoutingMinuteDeltaRow,
   type StreamCoverageInterval,
@@ -22,6 +24,8 @@ const KEYS = [
   "routing.ripe_ris.distinct_withdrawn_prefixes",
   "routing.ripe_ris.distinct_origin_asns_observed",
 ] as const;
+
+const ROUTING_FINALIZATION_DELAY_SECONDS = Math.ceil(ROUTING_FINALIZATION_DELAY_MS / 1000);
 
 function hash(value: unknown): string {
   return createHash("sha256").update(canonicalJsonStringify(value)).digest("hex");
@@ -129,29 +133,33 @@ async function finalizeMinute(
   const intervalResult = await client.query<{
     id: string;
     capture_profile_revision_id: string | null;
-    subscribed_at: Date;
-    ended_at: Date;
+    observed_from: Date;
+    observed_to: Date;
   }>(
     `SELECT
-       id,
-       capture_profile_revision_id,
-       subscribed_at,
-       COALESCE(ended_at,now()) AS ended_at
-     FROM stream_sessions
-     WHERE source_definition_id=$1
-       AND subscribed_at IS NOT NULL
-       AND subscribed_at < $3
-       AND COALESCE(ended_at,now()) > $2
-     ORDER BY subscribed_at,id`,
+       s.id,
+       s.capture_profile_revision_id,
+       MIN(m.source_time_min) AS observed_from,
+       MAX(m.source_time_max) AS observed_to
+     FROM stream_sessions s
+     JOIN stream_segment_manifests m ON m.stream_session_id=s.id
+     WHERE s.source_definition_id=$1
+       AND m.source_time_min IS NOT NULL
+       AND m.source_time_max IS NOT NULL
+       AND m.source_time_min < $3
+       AND m.source_time_max > $2
+     GROUP BY s.id,s.capture_profile_revision_id
+     ORDER BY observed_from,s.id`,
     [sourceDefinitionId, bucketStart, bucketEnd],
   );
 
   const intervals: StreamCoverageInterval[] = intervalResult.rows.map((row) => ({
     sessionId: row.id,
     captureProfileRevisionId: row.capture_profile_revision_id,
-    subscribedAt: row.subscribed_at.toISOString(),
-    endedAt: row.ended_at.toISOString(),
+    observedFrom: row.observed_from.toISOString(),
+    observedTo: row.observed_to.toISOString(),
   }));
+  const normalizedIntervals = normalizeCoverageIntervals(bucketStart, bucketEnd, intervals);
 
   const snapshot = combineRoutingMinuteDeltas(deltaRows);
   const coverage = evaluateMinuteCoverage({
@@ -169,7 +177,7 @@ async function finalizeMinute(
       inputFingerprint: row.inputFingerprint,
       captureProfileRevisionId: row.captureProfileRevisionId,
     })),
-    intervals,
+    intervals: normalizedIntervals,
     coverageStatus: coverage.coverageStatus,
     captureProfileRevisionId: coverage.captureProfileRevisionId,
   });
@@ -458,10 +466,11 @@ export async function routingMeasurementTick(): Promise<boolean> {
     }>(
       `SELECT source_definition_id,bucket_start
        FROM routing_measurement_dirty_minutes
-       WHERE bucket_start < date_trunc('minute',now())
+       WHERE bucket_start + interval '1 minute' <= now() - ($1::int * interval '1 second')
        ORDER BY dirty_since,bucket_start
        FOR UPDATE SKIP LOCKED
        LIMIT 1`,
+      [ROUTING_FINALIZATION_DELAY_SECONDS],
     );
     const row = dirty.rows[0];
     if (!row) return false;
