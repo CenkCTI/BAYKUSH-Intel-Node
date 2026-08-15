@@ -1,0 +1,135 @@
+import { describe, expect, it } from "vitest";
+import {
+  combineRoutingMinuteDeltas,
+  evaluateMinuteCoverage,
+  shouldMaterializeRoutingGranularity,
+  type RoutingMinuteDeltaRow,
+} from "../src/routing/finalize.js";
+
+function delta(overrides: Partial<RoutingMinuteDeltaRow> = {}): RoutingMinuteDeltaRow {
+  return {
+    segmentId: "segment-1",
+    captureProfileRevisionId: "profile-1",
+    updateMessageCount: 2,
+    announcementPrefixEventCount: 2,
+    withdrawalPrefixEventCount: 1,
+    announcedPrefixes: ["192.0.2.0/24"],
+    withdrawnPrefixes: ["2001:db8::/32"],
+    allPrefixes: ["192.0.2.0/24", "2001:db8::/32"],
+    originAsns: [64500],
+    peerAsns: [64510],
+    rrcs: ["rrc00.ripe.net"],
+    rejectedMessageCount: 0,
+    inputFingerprint: "a".repeat(64),
+    ...overrides,
+  };
+}
+
+describe("NODE-6 closed-minute finalization", () => {
+  it("unions exact identities without summing distincts", () => {
+    const snapshot = combineRoutingMinuteDeltas([
+      delta(),
+      delta({
+        segmentId: "segment-2",
+        updateMessageCount: 3,
+        announcementPrefixEventCount: 4,
+        withdrawalPrefixEventCount: 0,
+        announcedPrefixes: ["192.0.2.0/24", "198.51.100.0/24"],
+        withdrawnPrefixes: [],
+        allPrefixes: ["192.0.2.0/24", "198.51.100.0/24"],
+        originAsns: [64500, 64501],
+        peerAsns: [64511],
+        rrcs: ["rrc00.ripe.net", "rrc01.ripe.net"],
+        inputFingerprint: "b".repeat(64),
+      }),
+    ]);
+
+    expect(snapshot.updateMessages).toBe(5);
+    expect(snapshot.announcementPrefixEvents).toBe(6);
+    expect(snapshot.withdrawalPrefixEvents).toBe(1);
+    expect(snapshot.allPrefixes).toEqual([
+      "192.0.2.0/24",
+      "198.51.100.0/24",
+      "2001:db8::/32",
+    ]);
+    expect(snapshot.originAsns).toEqual([64500, 64501]);
+    expect(snapshot.rrcs).toEqual(["rrc00.ripe.net", "rrc01.ripe.net"]);
+    expect(snapshot.inputSegmentCount).toBe(2);
+  });
+
+  it("requires continuous subscription with one capture population for COMPLETE coverage", () => {
+    const complete = evaluateMinuteCoverage({
+      bucketStart: "2026-08-15T11:30:00.000Z",
+      bucketEnd: "2026-08-15T11:31:00.000Z",
+      intervals: [{
+        sessionId: "session-1",
+        captureProfileRevisionId: "profile-1",
+        subscribedAt: "2026-08-15T11:29:00.000Z",
+        endedAt: "2026-08-15T11:32:00.000Z",
+      }],
+      deltaProfileIds: ["profile-1"],
+      rejectedMessages: 0,
+      hasObservedData: true,
+    });
+    expect(complete.coverageStatus).toBe("COMPLETE");
+    expect(complete.captureProfileRevisionId).toBe("profile-1");
+
+    const gap = evaluateMinuteCoverage({
+      bucketStart: "2026-08-15T11:30:00.000Z",
+      bucketEnd: "2026-08-15T11:31:00.000Z",
+      intervals: [
+        {
+          sessionId: "session-1",
+          captureProfileRevisionId: "profile-1",
+          subscribedAt: "2026-08-15T11:29:00.000Z",
+          endedAt: "2026-08-15T11:30:10.000Z",
+        },
+        {
+          sessionId: "session-2",
+          captureProfileRevisionId: "profile-1",
+          subscribedAt: "2026-08-15T11:30:12.000Z",
+          endedAt: "2026-08-15T11:32:00.000Z",
+        },
+      ],
+      deltaProfileIds: ["profile-1"],
+      rejectedMessages: 0,
+      hasObservedData: true,
+    });
+    expect(gap.coverageStatus).toBe("PARTIAL");
+    expect(gap.dataAvailability).toBe("PARTIAL");
+  });
+
+  it("treats observer-population changes as comparison-significant", () => {
+    const coverage = evaluateMinuteCoverage({
+      bucketStart: "2026-08-15T11:30:00.000Z",
+      bucketEnd: "2026-08-15T11:31:00.000Z",
+      intervals: [
+        {
+          sessionId: "session-1",
+          captureProfileRevisionId: "profile-1",
+          subscribedAt: "2026-08-15T11:29:00.000Z",
+          endedAt: "2026-08-15T11:30:30.000Z",
+        },
+        {
+          sessionId: "session-2",
+          captureProfileRevisionId: "profile-2",
+          subscribedAt: "2026-08-15T11:30:30.000Z",
+          endedAt: "2026-08-15T11:32:00.000Z",
+        },
+      ],
+      deltaProfileIds: ["profile-1", "profile-2"],
+      rejectedMessages: 0,
+      hasObservedData: true,
+    });
+    expect(coverage.continuous).toBe(true);
+    expect(coverage.coverageStatus).toBe("PARTIAL");
+    expect(coverage.captureProfileRevisionId).toBeNull();
+  });
+
+  it("materializes higher granularities only after their bucket closes", () => {
+    const now = new Date("2026-08-15T11:34:30.000Z");
+    expect(shouldMaterializeRoutingGranularity("ONE_MINUTE", "2026-08-15T11:35:00.000Z", now)).toBe(true);
+    expect(shouldMaterializeRoutingGranularity("FIVE_MINUTES", "2026-08-15T11:35:00.000Z", now)).toBe(false);
+    expect(shouldMaterializeRoutingGranularity("FIVE_MINUTES", "2026-08-15T11:30:00.000Z", now)).toBe(true);
+  });
+});
