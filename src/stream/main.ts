@@ -17,6 +17,7 @@ import {
 import { purgeExpiredStreamPayloads } from "./retention.js";
 
 let stopping = false;
+const CLOSE_GRACE_MS = 3_000;
 
 type CloseIntent =
   | "SOURCE_DISABLED"
@@ -70,12 +71,26 @@ async function runSession(sourceDefinitionId: string): Promise<void> {
   let closeCode: number | null = null;
   let closeReason = "";
   let sourceCheckRunning = false;
+  let closeFallbackTimer: NodeJS.Timeout | null = null;
 
   const socket = new WebSocket(RIPE_RIS_LIVE_URL, {
     handshakeTimeout: 15_000,
     maxPayload: config.streamMaxMessageBytes,
     perMessageDeflate: false,
   });
+
+  const armCloseFallback = (intent: CloseIntent): void => {
+    if (closeFallbackTimer) return;
+    closeFallbackTimer = setTimeout(() => {
+      if (socket.readyState === WebSocket.CLOSED) return;
+      void recordStreamEvent(sessionId, "FORCED_TERMINATE", {
+        intent,
+        graceMs: CLOSE_GRACE_MS,
+        readyState: socket.readyState,
+      }).catch(() => undefined);
+      socket.terminate();
+    }, CLOSE_GRACE_MS);
+  };
 
   const requestClose = (intent: CloseIntent): void => {
     if (closeIntent) return;
@@ -89,6 +104,7 @@ async function runSession(sourceDefinitionId: string): Promise<void> {
 
     if (socket.readyState === WebSocket.OPEN) {
       socket.close(spec.code, spec.reason);
+      armCloseFallback(intent);
     } else if (socket.readyState === WebSocket.CONNECTING) {
       socket.terminate();
     }
@@ -194,7 +210,9 @@ async function runSession(sourceDefinitionId: string): Promise<void> {
         }
 
         if (type === "ris_error") {
-          void recordStreamEvent(sessionId, "PROVIDER_ERROR", {});
+          void recordStreamEvent(sessionId, "PROVIDER_ERROR", {
+            data: parsed.data ?? null,
+          });
           requestClose("PROVIDER_ERROR");
           return;
         }
@@ -226,6 +244,10 @@ async function runSession(sourceDefinitionId: string): Promise<void> {
     socket.on("close", (code, reason) => {
       closeCode = code;
       closeReason = reason.toString("utf8").slice(0, 512);
+      if (closeFallbackTimer) {
+        clearTimeout(closeFallbackTimer);
+        closeFallbackTimer = null;
+      }
       resolve();
     });
   });
@@ -233,6 +255,7 @@ async function runSession(sourceDefinitionId: string): Promise<void> {
   clearInterval(drainTimer);
   clearInterval(zeroTimer);
   clearInterval(sourceStateTimer);
+  if (closeFallbackTimer) clearTimeout(closeFallbackTimer);
   if (closeActiveSession === requestClose) closeActiveSession = null;
 
   await flush().catch(() => undefined);
