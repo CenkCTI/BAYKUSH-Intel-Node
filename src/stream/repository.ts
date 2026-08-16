@@ -64,6 +64,20 @@ export async function updateStreamSession(
      WHERE id=$1`,
     [sessionId, status, reason],
   );
+  if (status === "FAILED") {
+    await pool.query(
+      `INSERT INTO routing_measurement_dirty_minutes(source_definition_id,bucket_start)
+       SELECT DISTINCT session.source_definition_id,delta.bucket_start
+       FROM stream_sessions session
+       JOIN stream_segment_manifests manifest ON manifest.stream_session_id=session.id
+       JOIN routing_segment_minute_deltas delta ON delta.segment_id=manifest.id
+       WHERE session.id=$1
+       ON CONFLICT(source_definition_id,bucket_start) DO UPDATE SET
+         dirty_revision=routing_measurement_dirty_minutes.dirty_revision+1,
+         dirty_since=LEAST(routing_measurement_dirty_minutes.dirty_since,now())`,
+      [sessionId],
+    );
+  }
 }
 
 export async function recordStreamEvent(

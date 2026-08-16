@@ -120,6 +120,26 @@ describe("NODE-6 closed-minute finalization", () => {
     expect(coverage.continuous).toBe(false);
   });
 
+  it("degrades source-time coverage when an overlapping session failed closed", () => {
+    const coverage = evaluateMinuteCoverage({
+      bucketStart: "2026-08-16T22:53:00.000Z",
+      bucketEnd: "2026-08-16T22:54:00.000Z",
+      intervals: [{
+        sessionId: "backpressured-session",
+        captureProfileRevisionId: "profile-1",
+        observedFrom: "2026-08-16T22:52:30.000Z",
+        observedTo: "2026-08-16T22:54:10.000Z",
+        degraded: true,
+      }],
+      deltaProfileIds: ["profile-1"],
+      rejectedMessages: 0,
+      hasObservedData: true,
+    });
+    expect(coverage.continuous).toBe(true);
+    expect(coverage.coverageStatus).toBe("DEGRADED");
+    expect(coverage.dataAvailability).toBe("PARTIAL");
+  });
+
   it("clamps coverage intervals so later watermark advance does not change a settled-minute fingerprint", () => {
     const first = normalizeCoverageIntervals(
       "2026-08-15T11:30:00.000Z",

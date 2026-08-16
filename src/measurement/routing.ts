@@ -135,12 +135,18 @@ async function finalizeMinute(
     capture_profile_revision_id: string | null;
     observed_from: Date;
     observed_to: Date;
+    degraded: boolean;
   }>(
     `SELECT
        s.id,
        s.capture_profile_revision_id,
        MIN(m.source_time_min) AS observed_from,
-       MAX(m.source_time_max) AS observed_to
+       MAX(m.source_time_max) AS observed_to,
+       (s.status='FAILED' OR EXISTS(
+         SELECT 1 FROM stream_session_events event
+         WHERE event.stream_session_id=s.id
+           AND event.event_type='BACKPRESSURE_LIMIT'
+       )) AS degraded
      FROM stream_sessions s
      JOIN stream_segment_manifests m ON m.stream_session_id=s.id
      WHERE s.source_definition_id=$1
@@ -158,6 +164,7 @@ async function finalizeMinute(
     captureProfileRevisionId: row.capture_profile_revision_id,
     observedFrom: row.observed_from.toISOString(),
     observedTo: row.observed_to.toISOString(),
+    degraded: row.degraded,
   }));
   const normalizedIntervals = normalizeCoverageIntervals(bucketStart, bucketEnd, intervals);
 

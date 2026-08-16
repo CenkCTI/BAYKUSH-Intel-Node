@@ -21,6 +21,7 @@ export interface StreamCoverageInterval {
   captureProfileRevisionId: string | null;
   observedFrom: string;
   observedTo: string;
+  degraded?: boolean;
 }
 
 export interface RoutingMinuteSnapshot {
@@ -91,6 +92,7 @@ export function normalizeCoverageIntervals(
         captureProfileRevisionId: interval.captureProfileRevisionId,
         observedFrom: new Date(observedFrom).toISOString(),
         observedTo: new Date(observedTo).toISOString(),
+        degraded: interval.degraded === true,
       };
     })
     .filter((interval) => {
@@ -138,7 +140,9 @@ export function evaluateMinuteCoverage(input: {
     && overlapping.every((interval) => interval.captureProfileRevisionId === allProfileIds[0])
     && input.deltaProfileIds.every((profileId) => profileId === allProfileIds[0]);
 
-  if (input.rejectedMessages > 0) {
+  const degradedInterval = overlapping.some((interval) => interval.degraded === true);
+
+  if (input.rejectedMessages > 0 || degradedInterval) {
     return {
       coverageStatus: "DEGRADED",
       dataAvailability: "PARTIAL",

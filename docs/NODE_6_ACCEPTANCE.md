@@ -32,3 +32,9 @@ NODE-6 is not complete merely because a RIPE chart renders.
 8. execute bounded MRT recovery and verify revised availability;
 9. restart the stream worker and verify no duplication;
 10. run final/security audits before merge.
+
+## Current merge gates
+
+- The full 23-RRC live profile must sustain ingestion without reaching the bounded queue. A controlled 2026-08-16 acceptance run reached the 50,000-message limit, recorded `BACKPRESSURE_LIMIT`, failed closed, and reconnected; affected measurements were conservatively degraded.
+- MRT recovery remains planning-only until a maintained decoder is pinned, licensed, sandboxed, provenance-recorded, and accepted against deterministic fixtures. Planned work must not be reported as repaired availability.
+- Raw-retention expiry still needs a non-destructive acceptance run after test payloads naturally exceed the 48-hour horizon.

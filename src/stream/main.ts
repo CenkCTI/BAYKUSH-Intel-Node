@@ -72,6 +72,13 @@ async function runSession(sourceDefinitionId: string): Promise<void> {
   let closeReason = "";
   let sourceCheckRunning = false;
   let closeFallbackTimer: NodeJS.Timeout | null = null;
+  let maxQueueMessages = 0;
+  let maxQueueBytes = 0;
+  let receivedMessages = 0;
+  let receivedBytes = 0;
+  let persistedMessages = 0;
+  let lastFlushMs = 0;
+  let maxFlushMs = 0;
 
   const socket = new WebSocket(RIPE_RIS_LIVE_URL, {
     handshakeTimeout: 15_000,
@@ -118,6 +125,7 @@ async function runSession(sourceDefinitionId: string): Promise<void> {
     try {
       const messages = queue.drain(config.streamSegmentMaxMessages, config.streamSegmentMaxBytes);
       if (messages.length) {
+        const flushStartedAt = Date.now();
         await persistStreamSegment({
           sourceDefinitionId,
           sessionId,
@@ -126,6 +134,9 @@ async function runSession(sourceDefinitionId: string): Promise<void> {
           messages,
           rawRetentionHours: config.streamRawRetentionHours,
         });
+        lastFlushMs = Date.now() - flushStartedAt;
+        maxFlushMs = Math.max(maxFlushMs, lastFlushMs);
+        persistedMessages += messages.length;
       }
     } finally {
       flushing = false;
@@ -162,6 +173,20 @@ async function runSession(sourceDefinitionId: string): Promise<void> {
         sourceCheckRunning = false;
       });
   }, 1_000);
+
+  const telemetryTimer = setInterval(() => {
+    void recordStreamEvent(sessionId, "STREAM_TELEMETRY", {
+      queueMessages: queue.size,
+      queueBytes: queue.bytes,
+      maxQueueMessages,
+      maxQueueBytes,
+      receivedMessages,
+      receivedBytes,
+      persistedMessages,
+      lastFlushMs,
+      maxFlushMs,
+    }).catch(() => undefined);
+  }, 10_000);
 
   await new Promise<void>((resolve) => {
     socket.on("open", () => {
@@ -211,7 +236,7 @@ async function runSession(sourceDefinitionId: string): Promise<void> {
 
         if (type === "ris_error") {
           void recordStreamEvent(sessionId, "PROVIDER_ERROR", {
-            data: parsed.data ?? null,
+            data: JSON.stringify(parsed.data ?? null).slice(0, 2_048),
           });
           requestClose("PROVIDER_ERROR");
           return;
@@ -225,12 +250,17 @@ async function runSession(sourceDefinitionId: string): Promise<void> {
 
       const receivedAt = new Date().toISOString();
       const item = { raw, receivedAt, bytes: Buffer.byteLength(raw) };
+      receivedMessages += 1;
+      receivedBytes += item.bytes;
       if (!queue.push(item)) {
         void recordStreamEvent(sessionId, "BACKPRESSURE_LIMIT", {
           queuedMessages: queue.size,
           queuedBytes: queue.bytes,
         });
         requestClose("BACKPRESSURE");
+      } else {
+        maxQueueMessages = Math.max(maxQueueMessages, queue.size);
+        maxQueueBytes = Math.max(maxQueueBytes, queue.bytes);
       }
     });
 
@@ -255,6 +285,7 @@ async function runSession(sourceDefinitionId: string): Promise<void> {
   clearInterval(drainTimer);
   clearInterval(zeroTimer);
   clearInterval(sourceStateTimer);
+  clearInterval(telemetryTimer);
   if (closeFallbackTimer) clearTimeout(closeFallbackTimer);
   if (closeActiveSession === requestClose) closeActiveSession = null;
 
