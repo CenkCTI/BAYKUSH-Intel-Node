@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  aggregateRoutingMaterialization,
   combineRoutingMinuteDeltas,
   evaluateMinuteCoverage,
   normalizeCoverageIntervals,
@@ -7,6 +8,7 @@ import {
   shouldFinalizeRoutingMinute,
   shouldMaterializeRoutingGranularity,
   type RoutingMinuteDeltaRow,
+  type RoutingMaterializationRow,
 } from "../src/routing/finalize.js";
 
 function delta(overrides: Partial<RoutingMinuteDeltaRow> = {}): RoutingMinuteDeltaRow {
@@ -203,5 +205,62 @@ describe("NODE-6 closed-minute finalization", () => {
     expect(shouldMaterializeRoutingGranularity("ONE_MINUTE", "2026-08-15T11:35:00.000Z", now)).toBe(true);
     expect(shouldMaterializeRoutingGranularity("FIVE_MINUTES", "2026-08-15T11:35:00.000Z", now)).toBe(false);
     expect(shouldMaterializeRoutingGranularity("FIVE_MINUTES", "2026-08-15T11:30:00.000Z", now)).toBe(true);
+  });
+
+  it("materializes a complete DAY from 1,440 compatible minutes using exact unions", () => {
+    const rows: RoutingMaterializationRow[] = Array.from({ length: 1_440 }, (_, index) => ({
+      captureProfileRevisionId: "full-23-rrc-profile",
+      updateMessageCount: 2,
+      announcementPrefixEventCount: 3,
+      withdrawalPrefixEventCount: 1,
+      announcedPrefixes: ["192.0.2.0/24", `198.51.${index % 10}.0/24`],
+      withdrawnPrefixes: ["2001:db8::/32"],
+      allPrefixes: ["192.0.2.0/24", `198.51.${index % 10}.0/24`, "2001:db8::/32"],
+      originAsns: [64500, 64501 + (index % 5)],
+      coverageStatus: "COMPLETE",
+      dataAvailability: "AVAILABLE",
+    }));
+
+    const day = aggregateRoutingMaterialization(rows, 1_440);
+    expect(day.complete).toBe(true);
+    expect(day.coverageStatus).toBe("COMPLETE");
+    expect(day.dataAvailability).toBe("AVAILABLE");
+    expect(day.updateMessages).toBe(2_880);
+    expect(day.announcementPrefixEvents).toBe(4_320);
+    expect(day.withdrawalPrefixEvents).toBe(1_440);
+    expect(day.distinctPrefixes).toBe(12);
+    expect(day.distinctAnnouncedPrefixes).toBe(11);
+    expect(day.distinctWithdrawnPrefixes).toBe(1);
+    expect(day.distinctOriginAsns).toBe(6);
+  });
+
+  it("suppresses DAY completeness for missing minutes or mixed observer populations", () => {
+    const row = (profile: string): RoutingMaterializationRow => ({
+      captureProfileRevisionId: profile,
+      updateMessageCount: 0,
+      announcementPrefixEventCount: 0,
+      withdrawalPrefixEventCount: 0,
+      announcedPrefixes: [],
+      withdrawnPrefixes: [],
+      allPrefixes: [],
+      originAsns: [],
+      coverageStatus: "COMPLETE",
+      dataAvailability: "AVAILABLE",
+    });
+    const missingMinute = aggregateRoutingMaterialization(
+      Array.from({ length: 1_439 }, () => row("profile-1")),
+      1_440,
+    );
+    expect(missingMinute.complete).toBe(false);
+    expect(missingMinute.coverageStatus).toBe("PARTIAL");
+    expect(missingMinute.dataAvailability).toBe("PARTIAL");
+
+    const mixedPopulation = aggregateRoutingMaterialization([
+      ...Array.from({ length: 1_439 }, () => row("profile-1")),
+      row("profile-2"),
+    ], 1_440);
+    expect(mixedPopulation.complete).toBe(false);
+    expect(mixedPopulation.coverageStatus).toBe("PARTIAL");
+    expect(mixedPopulation.captureProfileRevisionIds).toEqual(["profile-1", "profile-2"]);
   });
 });

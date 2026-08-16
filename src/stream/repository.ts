@@ -155,11 +155,29 @@ export async function persistStreamSegment(input: {
   sequence: number;
   messages: readonly QueuedStreamMessage[];
   rawRetentionHours: number;
-}): Promise<{ inserted: boolean; rejected: number; minutes: number }> {
-  if (!input.messages.length) return { inserted: false, rejected: 0, minutes: 0 };
+}): Promise<{
+  inserted: boolean;
+  rejected: number;
+  minutes: number;
+  compressedBytes: number;
+  uncompressedBytes: number;
+  compressionMs: number;
+  projectionMs: number;
+  databaseMs: number;
+  totalMs: number;
+}> {
+  const totalStartedAt = Date.now();
+  if (!input.messages.length) return {
+    inserted: false, rejected: 0, minutes: 0, compressedBytes: 0, uncompressedBytes: 0,
+    compressionMs: 0, projectionMs: 0, databaseMs: 0, totalMs: 0,
+  };
 
   const payload = input.messages.map((message) => message.raw).join("\n");
+  const uncompressedBytes = Buffer.byteLength(payload);
+  const compressionStartedAt = Date.now();
   const compressed = gzipSync(Buffer.from(payload, "utf8"));
+  const compressionMs = Date.now() - compressionStartedAt;
+  const projectionStartedAt = Date.now();
   const observations: RoutingObservation[] = [];
   let rejected = 0;
   let updateMessages = 0;
@@ -188,8 +206,10 @@ export async function persistStreamSegment(input: {
   const contentHash = sha256(payload);
   const nodeMin = input.messages[0]!.receivedAt;
   const nodeMax = input.messages[input.messages.length - 1]!.receivedAt;
+  const projectionMs = Date.now() - projectionStartedAt;
+  const databaseStartedAt = Date.now();
 
-  return withTransaction(async (client) => {
+  const persisted = await withTransaction(async (client) => {
     const manifest = await client.query<{ id: string }>(
       `INSERT INTO stream_segment_manifests(
          source_definition_id,capture_profile_revision_id,stream_session_id,segment_sequence,
@@ -212,7 +232,7 @@ export async function persistStreamSegment(input: {
         input.messages.length,
         updateMessages,
         rejected,
-        Buffer.byteLength(payload),
+        uncompressedBytes,
         compressed.byteLength,
         contentHash,
         firstId,
@@ -324,6 +344,15 @@ export async function persistStreamSegment(input: {
 
     return { inserted: true, rejected, minutes: deltas.length };
   });
+  return {
+    ...persisted,
+    compressedBytes: compressed.byteLength,
+    uncompressedBytes,
+    compressionMs,
+    projectionMs,
+    databaseMs: Date.now() - databaseStartedAt,
+    totalMs: Date.now() - totalStartedAt,
+  };
 }
 
 export async function ensureCoveredMinute(input: {

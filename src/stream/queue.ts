@@ -23,3 +23,36 @@ export class BoundedStreamQueue {
     return output;
   }
 }
+
+export class SingleConsumerDrainPump {
+  #active: Promise<void> | null = null;
+
+  constructor(
+    readonly queue: BoundedStreamQueue,
+    readonly maxMessages: number,
+    readonly maxBytes: number,
+    readonly consume: (messages: readonly QueuedStreamMessage[]) => Promise<void>,
+  ) {
+    if (!Number.isInteger(maxMessages) || maxMessages < 1) throw new Error("maxMessages must be positive");
+    if (!Number.isInteger(maxBytes) || maxBytes < 1) throw new Error("maxBytes must be positive");
+  }
+
+  get running(): boolean { return this.#active !== null; }
+
+  drain(): Promise<void> {
+    if (this.#active) return this.#active;
+    const run = this.#drainContinuously();
+    this.#active = run.finally(() => {
+      this.#active = null;
+    });
+    return this.#active;
+  }
+
+  async #drainContinuously(): Promise<void> {
+    while (this.queue.size > 0) {
+      const messages = this.queue.drain(this.maxMessages, this.maxBytes);
+      if (messages.length === 0) throw new Error("Stream drain pump made no progress");
+      await this.consume(messages);
+    }
+  }
+}

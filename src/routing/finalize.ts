@@ -47,6 +47,59 @@ export interface MinuteCoverageEvaluation {
   continuous: boolean;
 }
 
+export interface RoutingMaterializationRow {
+  captureProfileRevisionId: string | null;
+  updateMessageCount: number;
+  announcementPrefixEventCount: number;
+  withdrawalPrefixEventCount: number;
+  announcedPrefixes: readonly string[];
+  withdrawnPrefixes: readonly string[];
+  allPrefixes: readonly string[];
+  originAsns: readonly number[];
+  coverageStatus: string;
+  dataAvailability: string;
+}
+
+export function aggregateRoutingMaterialization(
+  rows: readonly RoutingMaterializationRow[],
+  expectedRows: number,
+): {
+  complete: boolean;
+  coverageStatus: "COMPLETE" | "PARTIAL" | "DEGRADED" | "NO_COVERAGE";
+  dataAvailability: "AVAILABLE" | "PARTIAL" | "UNAVAILABLE";
+  captureProfileRevisionIds: string[];
+  updateMessages: number;
+  announcementPrefixEvents: number;
+  withdrawalPrefixEvents: number;
+  distinctPrefixes: number;
+  distinctAnnouncedPrefixes: number;
+  distinctWithdrawnPrefixes: number;
+  distinctOriginAsns: number;
+} {
+  const profiles = uniqueSortedStrings(
+    rows.map((row) => row.captureProfileRevisionId).filter((value): value is string => Boolean(value)),
+  );
+  const compatibleProfile = profiles.length === 1
+    && rows.every((row) => row.captureProfileRevisionId === profiles[0]);
+  const complete = rows.length === expectedRows
+    && rows.every((row) => row.coverageStatus === "COMPLETE" && row.dataAvailability === "AVAILABLE")
+    && compatibleProfile;
+  const degraded = rows.some((row) => row.coverageStatus === "DEGRADED");
+  return {
+    complete,
+    coverageStatus: complete ? "COMPLETE" : rows.length === 0 ? "NO_COVERAGE" : degraded ? "DEGRADED" : "PARTIAL",
+    dataAvailability: complete ? "AVAILABLE" : rows.length === 0 ? "UNAVAILABLE" : "PARTIAL",
+    captureProfileRevisionIds: profiles,
+    updateMessages: rows.reduce((sum, row) => sum + row.updateMessageCount, 0),
+    announcementPrefixEvents: rows.reduce((sum, row) => sum + row.announcementPrefixEventCount, 0),
+    withdrawalPrefixEvents: rows.reduce((sum, row) => sum + row.withdrawalPrefixEventCount, 0),
+    distinctPrefixes: uniqueSortedStrings(rows.flatMap((row) => [...row.allPrefixes])).length,
+    distinctAnnouncedPrefixes: uniqueSortedStrings(rows.flatMap((row) => [...row.announcedPrefixes])).length,
+    distinctWithdrawnPrefixes: uniqueSortedStrings(rows.flatMap((row) => [...row.withdrawnPrefixes])).length,
+    distinctOriginAsns: uniqueSortedNumbers(rows.flatMap((row) => [...row.originAsns])).length,
+  };
+}
+
 function uniqueSortedStrings(values: readonly string[]): string[] {
   return [...new Set(values)].sort();
 }

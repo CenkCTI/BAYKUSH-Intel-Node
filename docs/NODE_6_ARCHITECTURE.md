@@ -6,7 +6,7 @@ NODE-6 adds a second ingestion class to BAYKUSH Intelligence Node: bounded conti
 ## Pipeline
 `RIPE RIS Live -> stream worker -> bounded queue -> immutable segment manifest/payload -> routing segment delta -> exact one-minute micro-bucket -> 5m/hour/day measurement -> authenticated Node API`
 
-RIPE MRT update files are a second acquisition channel for the same `RIPE_RIS` upstream origin. The repository contains a bounded, allowlisted five-minute MRT recovery planner. Full MRT binary decoding/projecting remains a separate guarded execution gate; a planned recovery must not be marked as repaired until decoded evidence has been projected and audited.
+RIPE MRT update files are a second acquisition channel for the same `RIPE_RIS` upstream origin. NODE-6 v1 contains a bounded, allowlisted five-minute MRT recovery planner. Binary decoding/projecting is explicitly deferred to NODE-6.2: it adds a native-parser supply chain, licensing, sandboxing and decoder-provenance surface that must be evaluated and pinned independently. A planned recovery must not be marked as repaired until decoded evidence has been projected and audited.
 
 ## Non-negotiable semantics
 - BGP UPDATE count != routing incident count.

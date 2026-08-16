@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import type { PoolClient } from "pg";
 import { withTransaction } from "../db/pool.js";
 import {
+  aggregateRoutingMaterialization,
   combineRoutingMinuteDeltas,
   evaluateMinuteCoverage,
   normalizeCoverageIntervals,
@@ -278,48 +279,33 @@ async function materialize(
   );
 
   const expected = expectedMinutes(input.granularity);
-  const profiles = [
-    ...new Set(
-      rows.rows
-        .map((row) => row.capture_profile_revision_id)
-        .filter((value): value is string => Boolean(value)),
-    ),
-  ].sort();
+  const aggregate = aggregateRoutingMaterialization(rows.rows.map((row) => ({
+    captureProfileRevisionId: row.capture_profile_revision_id,
+    updateMessageCount: Number(row.update_message_count),
+    announcementPrefixEventCount: Number(row.announcement_prefix_event_count),
+    withdrawalPrefixEventCount: Number(row.withdrawal_prefix_event_count),
+    announcedPrefixes: strings(row.announced_prefixes),
+    withdrawnPrefixes: strings(row.withdrawn_prefixes),
+    allPrefixes: strings(row.all_prefixes),
+    originAsns: numbers(row.origin_asns),
+    coverageStatus: row.coverage_status,
+    dataAvailability: row.data_availability,
+  })), expected);
+  const profiles = aggregate.captureProfileRevisionIds;
   const compatibleProfile = profiles.length === 1
     && rows.rows.every((row) => row.capture_profile_revision_id === profiles[0]);
-  const complete = rows.rows.length === expected
-    && rows.rows.every((row) => row.coverage_status === "COMPLETE" && row.data_availability === "AVAILABLE")
-    && compatibleProfile;
-  const degraded = rows.rows.some((row) => row.coverage_status === "DEGRADED");
-  const coverage = complete
-    ? "COMPLETE"
-    : rows.rows.length === 0
-      ? "NO_COVERAGE"
-      : degraded
-        ? "DEGRADED"
-        : "PARTIAL";
-  const availability = complete
-    ? "AVAILABLE"
-    : rows.rows.length === 0
-      ? "UNAVAILABLE"
-      : "PARTIAL";
-
-  const updateMessages = rows.rows.reduce((sum, row) => sum + Number(row.update_message_count), 0);
-  const announcements = rows.rows.reduce((sum, row) => sum + Number(row.announcement_prefix_event_count), 0);
-  const withdrawals = rows.rows.reduce((sum, row) => sum + Number(row.withdrawal_prefix_event_count), 0);
-  const allPrefixes = [...new Set(rows.rows.flatMap((row) => strings(row.all_prefixes)))].sort();
-  const announcedPrefixes = [...new Set(rows.rows.flatMap((row) => strings(row.announced_prefixes)))].sort();
-  const withdrawnPrefixes = [...new Set(rows.rows.flatMap((row) => strings(row.withdrawn_prefixes)))].sort();
-  const originAsns = [...new Set(rows.rows.flatMap((row) => numbers(row.origin_asns)))].sort((a, b) => a - b);
+  const complete = aggregate.complete;
+  const coverage = aggregate.coverageStatus;
+  const availability = aggregate.dataAvailability;
 
   const values: Record<(typeof KEYS)[number], number> = {
-    "routing.ripe_ris.update_messages": updateMessages,
-    "routing.ripe_ris.announcement_prefix_events": announcements,
-    "routing.ripe_ris.withdrawal_prefix_events": withdrawals,
-    "routing.ripe_ris.distinct_prefixes_observed": allPrefixes.length,
-    "routing.ripe_ris.distinct_announced_prefixes": announcedPrefixes.length,
-    "routing.ripe_ris.distinct_withdrawn_prefixes": withdrawnPrefixes.length,
-    "routing.ripe_ris.distinct_origin_asns_observed": originAsns.length,
+    "routing.ripe_ris.update_messages": aggregate.updateMessages,
+    "routing.ripe_ris.announcement_prefix_events": aggregate.announcementPrefixEvents,
+    "routing.ripe_ris.withdrawal_prefix_events": aggregate.withdrawalPrefixEvents,
+    "routing.ripe_ris.distinct_prefixes_observed": aggregate.distinctPrefixes,
+    "routing.ripe_ris.distinct_announced_prefixes": aggregate.distinctAnnouncedPrefixes,
+    "routing.ripe_ris.distinct_withdrawn_prefixes": aggregate.distinctWithdrawnPrefixes,
+    "routing.ripe_ris.distinct_origin_asns_observed": aggregate.distinctOriginAsns,
   };
 
   const inputFingerprint = hash({ revisionIds: rows.rows.map((row) => row.id), profiles });

@@ -2,7 +2,7 @@ import WebSocket, { type RawData } from "ws";
 import { config } from "../config.js";
 import { pool } from "../db/pool.js";
 import { startHeartbeatLoop } from "../runtime/heartbeat.js";
-import { BoundedStreamQueue } from "./queue.js";
+import { BoundedStreamQueue, SingleConsumerDrainPump } from "./queue.js";
 import { RIPE_RIS_LIVE_URL, ripeRisSubscription } from "./ripe-ris/source.js";
 import {
   attachCaptureProfile,
@@ -65,7 +65,6 @@ async function runSession(sourceDefinitionId: string): Promise<void> {
   const queue = new BoundedStreamQueue(config.streamQueueMaxMessages, config.streamQueueMaxBytes);
   let profileId: string | null = null;
   let sequence = 0;
-  let flushing = false;
   let subscribed = false;
   let closeIntent: CloseIntent | null = null;
   let closeCode: number | null = null;
@@ -77,8 +76,18 @@ async function runSession(sourceDefinitionId: string): Promise<void> {
   let receivedMessages = 0;
   let receivedBytes = 0;
   let persistedMessages = 0;
+  let persistedCompressedBytes = 0;
+  let flushCount = 0;
+  let lastFlushMessages = 0;
   let lastFlushMs = 0;
   let maxFlushMs = 0;
+  let lastCompressionMs = 0;
+  let maxCompressionMs = 0;
+  let lastProjectionMs = 0;
+  let maxProjectionMs = 0;
+  let lastDatabaseMs = 0;
+  let maxDatabaseMs = 0;
+  let lastTelemetryAt = Date.now();
 
   const socket = new WebSocket(RIPE_RIS_LIVE_URL, {
     handshakeTimeout: 15_000,
@@ -119,14 +128,33 @@ async function runSession(sourceDefinitionId: string): Promise<void> {
 
   closeActiveSession = requestClose;
 
-  const flush = async (): Promise<void> => {
-    if (flushing || queue.size === 0) return;
-    flushing = true;
-    try {
-      const messages = queue.drain(config.streamSegmentMaxMessages, config.streamSegmentMaxBytes);
-      if (messages.length) {
-        const flushStartedAt = Date.now();
-        await persistStreamSegment({
+  const telemetryDetails = (): Record<string, number> => ({
+    queueMessages: queue.size,
+    queueBytes: queue.bytes,
+    maxQueueMessages,
+    maxQueueBytes,
+    receivedMessages,
+    receivedBytes,
+    persistedMessages,
+    persistedCompressedBytes,
+    flushCount,
+    lastFlushMessages,
+    lastFlushMs,
+    maxFlushMs,
+    lastCompressionMs,
+    maxCompressionMs,
+    lastProjectionMs,
+    maxProjectionMs,
+    lastDatabaseMs,
+    maxDatabaseMs,
+  });
+
+  const pump = new SingleConsumerDrainPump(
+    queue,
+    config.streamSegmentMaxMessages,
+    config.streamSegmentMaxBytes,
+    async (messages) => {
+        const result = await persistStreamSegment({
           sourceDefinitionId,
           sessionId,
           profileId,
@@ -134,21 +162,35 @@ async function runSession(sourceDefinitionId: string): Promise<void> {
           messages,
           rawRetentionHours: config.streamRawRetentionHours,
         });
-        lastFlushMs = Date.now() - flushStartedAt;
+        lastFlushMessages = messages.length;
+        lastFlushMs = result.totalMs;
         maxFlushMs = Math.max(maxFlushMs, lastFlushMs);
+        lastCompressionMs = result.compressionMs;
+        maxCompressionMs = Math.max(maxCompressionMs, lastCompressionMs);
+        lastProjectionMs = result.projectionMs;
+        maxProjectionMs = Math.max(maxProjectionMs, lastProjectionMs);
+        lastDatabaseMs = result.databaseMs;
+        maxDatabaseMs = Math.max(maxDatabaseMs, lastDatabaseMs);
         persistedMessages += messages.length;
-      }
-    } finally {
-      flushing = false;
-    }
+        persistedCompressedBytes += result.compressedBytes;
+        flushCount += 1;
+        if (Date.now() - lastTelemetryAt >= 10_000) {
+          lastTelemetryAt = Date.now();
+          await recordStreamEvent(sessionId, "STREAM_TELEMETRY", telemetryDetails());
+        }
+    },
+  );
+
+  const drain = (): Promise<void> => pump.drain();
+
+  const handleDrainFailure = async (error: unknown): Promise<void> => {
+    console.error("stream segment flush failed", error);
+    await recordStreamEvent(sessionId, "DB_UNAVAILABLE", {}).catch(() => undefined);
+    requestClose("DB_UNAVAILABLE");
   };
 
   const drainTimer = setInterval(() => {
-    void flush().catch(async (error) => {
-      console.error("stream segment flush failed", error);
-      await recordStreamEvent(sessionId, "DB_UNAVAILABLE", {}).catch(() => undefined);
-      requestClose("DB_UNAVAILABLE");
-    });
+    void drain().catch(handleDrainFailure);
   }, config.streamFlushIntervalMs);
 
   const zeroTimer = setInterval(() => {
@@ -175,17 +217,7 @@ async function runSession(sourceDefinitionId: string): Promise<void> {
   }, 1_000);
 
   const telemetryTimer = setInterval(() => {
-    void recordStreamEvent(sessionId, "STREAM_TELEMETRY", {
-      queueMessages: queue.size,
-      queueBytes: queue.bytes,
-      maxQueueMessages,
-      maxQueueBytes,
-      receivedMessages,
-      receivedBytes,
-      persistedMessages,
-      lastFlushMs,
-      maxFlushMs,
-    }).catch(() => undefined);
+    void recordStreamEvent(sessionId, "STREAM_TELEMETRY", telemetryDetails()).catch(() => undefined);
   }, 10_000);
 
   await new Promise<void>((resolve) => {
@@ -261,6 +293,9 @@ async function runSession(sourceDefinitionId: string): Promise<void> {
       } else {
         maxQueueMessages = Math.max(maxQueueMessages, queue.size);
         maxQueueBytes = Math.max(maxQueueBytes, queue.bytes);
+        if (queue.size >= config.streamSegmentMaxMessages || queue.bytes >= config.streamSegmentMaxBytes) {
+          void drain().catch(handleDrainFailure);
+        }
       }
     });
 
@@ -289,7 +324,7 @@ async function runSession(sourceDefinitionId: string): Promise<void> {
   if (closeFallbackTimer) clearTimeout(closeFallbackTimer);
   if (closeActiveSession === requestClose) closeActiveSession = null;
 
-  await flush().catch(() => undefined);
+  await drain().catch(handleDrainFailure);
 
   const operatorClosed = closeIntent === "SOURCE_DISABLED" || closeIntent === "WORKER_SHUTDOWN" || stopping;
   if (operatorClosed) {
