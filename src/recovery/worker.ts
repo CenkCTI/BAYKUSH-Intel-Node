@@ -1,4 +1,5 @@
 import { config } from "../config.js";
+import { persistDecoderStateChangeCount } from "./counters.js";
 import { recoveryDecoderBinarySha256, runMrtDecoder } from "./decoder.js";
 import { RecoveryFailure } from "./errors.js";
 import { downloadRipeMrtArtifact } from "./fetcher.js";
@@ -57,6 +58,7 @@ export async function processRecoverySegment(segment: ClaimedRecoverySegment): P
       onObservation: (observation) => accumulator.accept(observation),
     });
     await finishDecoderRun(segment, decoderRunId, decoded);
+    await persistDecoderStateChangeCount(decoderRunId, decoded.stateChangeRecords);
     await persistRecoveryProjection({
       segment,
       artifactId: saved.artifactId,
