@@ -113,7 +113,7 @@ jobs:
           artifact_sha="$(sha256sum .node6-2-fixture/updates.20240101.0000.gz | awk '{print $1}')"
           artifact_bytes="$(stat -c '%s' .node6-2-fixture/updates.20240101.0000.gz)"
           decoder_version="$(docker run --rm baykush-intelligence-node:node6-2-real-mrt /usr/local/bin/baykush-mrt-decoder --version)"
-          decoder_sha="$(docker run --rm baykush-intelligence-node:node6-2-real-mrt node -e \"const fs=require('fs'),c=require('crypto');console.log(c.createHash('sha256').update(fs.readFileSync('/usr/local/bin/baykush-mrt-decoder')).digest('hex'))\")"
+          decoder_sha="$(docker run --rm baykush-intelligence-node:node6-2-real-mrt sha256sum /usr/local/bin/baykush-mrt-decoder | cut -d' ' -f1)"
           export ARTIFACT_SHA="$artifact_sha" ARTIFACT_BYTES="$artifact_bytes" DECODER_VERSION="$decoder_version" DECODER_SHA="$decoder_sha"
           python3 - <<'PY'
           import json
