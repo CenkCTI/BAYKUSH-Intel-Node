@@ -5,9 +5,12 @@ import { createInterface } from "node:readline";
 import { config } from "../config.js";
 import type { RoutingObservation } from "../stream/contracts.js";
 import {
+  DECODER_SUMMARY_CONTRACT_VERSION,
   decoderRecordToRoutingObservation,
   mrtDecoderRecordSchema,
+  mrtDecoderSummarySchema,
   type MrtDecoderRecord,
+  type MrtDecoderSummary,
 } from "./contracts.js";
 import { RecoveryFailure } from "./errors.js";
 import {
@@ -21,9 +24,7 @@ import {
 async function sha256File(file: string): Promise<string> {
   const hash = createHash("sha256");
   const stream = createReadStream(file);
-  for await (const chunk of stream) {
-    hash.update(chunk);
-  }
+  for await (const chunk of stream) hash.update(chunk);
   return hash.digest("hex");
 }
 
@@ -41,6 +42,7 @@ export interface DecoderRunResult {
   arguments: string[];
   recordsRead: number;
   updatesDecoded: number;
+  stateChangeRecords: number;
   recordsIgnored: number;
   recordsRejected: number;
   outputSha256: string;
@@ -57,27 +59,22 @@ export async function runMrtDecoder(input: {
   const child = spawn(config.recoveryDecoderPath, [input.artifactPath], {
     shell: false,
     stdio: ["ignore", "pipe", "pipe"],
-    env: {
-      PATH: process.env.PATH ?? "/usr/bin:/bin",
-      LANG: "C.UTF-8",
-      LC_ALL: "C.UTF-8",
-    },
+    env: { PATH: process.env.PATH ?? "/usr/bin:/bin", LANG: "C.UTF-8", LC_ALL: "C.UTF-8" },
   });
-  if (!child.stdout || !child.stderr) {
-    throw new RecoveryFailure("DECODER_EXIT_NONZERO", "Decoder stdio unavailable");
-  }
+  if (!child.stdout || !child.stderr) throw new RecoveryFailure("DECODER_EXIT_NONZERO", "Decoder stdio unavailable");
 
   let timedOut = false;
   let stderr = "";
   let outputBytes = 0;
-  let records = 0;
+  let outputLines = 0;
+  let projectedUpdates = 0;
+  let summary: MrtDecoderSummary | null = null;
   const outputHash = createHash("sha256");
 
   child.stderr.setEncoding("utf8");
   child.stderr.on("data", (chunk: string) => {
     if (stderr.length < 65_536) stderr += chunk.slice(0, 65_536 - stderr.length);
   });
-
   const timer = setTimeout(() => {
     timedOut = true;
     child.kill("SIGKILL");
@@ -96,17 +93,44 @@ export async function runMrtDecoder(input: {
         child.kill("SIGKILL");
         throw new RecoveryFailure("DECODER_OUTPUT_LIMIT", "Decoder output byte limit exceeded");
       }
-      records += 1;
-      if (records > config.recoveryDecoderMaxRecords) {
+      outputLines += 1;
+      if (outputLines > config.recoveryDecoderMaxRecords + 1) {
         child.kill("SIGKILL");
-        throw new RecoveryFailure("DECODER_OUTPUT_LIMIT", "Decoder record limit exceeded");
+        throw new RecoveryFailure("DECODER_OUTPUT_LIMIT", "Decoder output line limit exceeded");
       }
       outputHash.update(line);
       outputHash.update("\n");
 
+      let parsed: unknown;
+      try {
+        parsed = JSON.parse(line);
+      } catch (error) {
+        child.kill("SIGKILL");
+        throw new RecoveryFailure("DECODER_OUTPUT_INVALID", "Decoder emitted non-JSON output", error);
+      }
+      const schemaVersion = typeof parsed === "object" && parsed !== null && "schemaVersion" in parsed
+        ? (parsed as { schemaVersion?: unknown }).schemaVersion
+        : undefined;
+      if (schemaVersion === DECODER_SUMMARY_CONTRACT_VERSION) {
+        if (summary !== null) {
+          child.kill("SIGKILL");
+          throw new RecoveryFailure("DECODER_OUTPUT_INVALID", "Decoder emitted multiple summary records");
+        }
+        try {
+          summary = mrtDecoderSummarySchema.parse(parsed);
+        } catch (error) {
+          child.kill("SIGKILL");
+          throw new RecoveryFailure("DECODER_OUTPUT_INVALID", "Decoder emitted invalid summary provenance", error);
+        }
+        continue;
+      }
+      if (summary !== null) {
+        child.kill("SIGKILL");
+        throw new RecoveryFailure("DECODER_OUTPUT_INVALID", "Decoder emitted records after its final summary");
+      }
       let record: MrtDecoderRecord;
       try {
-        record = mrtDecoderRecordSchema.parse(JSON.parse(line));
+        record = mrtDecoderRecordSchema.parse(parsed);
       } catch (error) {
         child.kill("SIGKILL");
         throw new RecoveryFailure(
@@ -115,6 +139,7 @@ export async function runMrtDecoder(input: {
           error,
         );
       }
+      projectedUpdates += 1;
       const observation = decoderRecordToRoutingObservation({
         record,
         rrc: input.rrc,
@@ -125,15 +150,30 @@ export async function runMrtDecoder(input: {
     }
 
     const exitCode = await exitPromise;
-    if (timedOut) {
-      throw new RecoveryFailure("DECODER_TIMEOUT", "Pinned MRT decoder exceeded execution timeout");
-    }
+    if (timedOut) throw new RecoveryFailure("DECODER_TIMEOUT", "Pinned MRT decoder exceeded execution timeout");
     if (exitCode !== 0) {
       throw new RecoveryFailure(
         "DECODER_EXIT_NONZERO",
         `Pinned MRT decoder exited ${exitCode}: ${stderr.trim().slice(0, 2048)}`,
       );
     }
+    if (summary === null) throw new RecoveryFailure("DECODER_OUTPUT_INVALID", "Decoder did not emit final summary provenance");
+    if (summary.updatesDecoded !== projectedUpdates) {
+      throw new RecoveryFailure("DECODER_OUTPUT_INVALID", "Decoder summary/update count mismatch");
+    }
+    if (summary.recordsRead > config.recoveryDecoderMaxRecords) {
+      throw new RecoveryFailure("DECODER_OUTPUT_LIMIT", "Decoder physical record count exceeded configured limit");
+    }
+    if (summary.recordsRejected !== 0) {
+      throw new RecoveryFailure("DECODER_CORRUPT_RECORD", "Decoder reported rejected physical MRT records");
+    }
+    if (summary.stateChangeRecords > summary.ignoredValidRecords) {
+      throw new RecoveryFailure("DECODER_OUTPUT_INVALID", "Decoder state-change count exceeds ignored-valid count");
+    }
+    if (summary.updatesDecoded + summary.ignoredValidRecords > summary.recordsRead) {
+      throw new RecoveryFailure("DECODER_OUTPUT_INVALID", "Decoder summary counters exceed physical records read");
+    }
+
     return {
       decoderName: DECODER_NAME,
       decoderVersion: DECODER_VERSION,
@@ -142,10 +182,11 @@ export async function runMrtDecoder(input: {
       decoderBinarySha256: binarySha,
       decoderContractVersion: DECODER_CONTRACT_VERSION,
       arguments: ["<local-staged-artifact>"],
-      recordsRead: records,
-      updatesDecoded: records,
-      recordsIgnored: 0,
-      recordsRejected: 0,
+      recordsRead: summary.recordsRead,
+      updatesDecoded: summary.updatesDecoded,
+      stateChangeRecords: summary.stateChangeRecords,
+      recordsIgnored: summary.ignoredValidRecords,
+      recordsRejected: summary.recordsRejected,
       outputSha256: outputHash.digest("hex"),
       exitCode,
     };
