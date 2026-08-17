@@ -1,8 +1,8 @@
 FROM rust:1.88-bookworm AS mrt-decoder-build
 WORKDIR /decoder
-COPY decoder/baykush-mrt-decoder/Cargo.toml ./Cargo.toml
+COPY decoder/baykush-mrt-decoder/Cargo.toml decoder/baykush-mrt-decoder/Cargo.lock ./
 COPY decoder/baykush-mrt-decoder/src ./src
-RUN cargo generate-lockfile && cargo build --release --locked
+RUN cargo build --release --locked
 
 FROM node:20-bookworm-slim AS build
 WORKDIR /app
