@@ -124,5 +124,41 @@ services:
         condition: service_completed_successfully
     restart: unless-stopped
 
+  recovery-worker:
+    build: .
+    command: ["node", "dist/recovery/main.js"]
+    environment:
+      <<: *node-env
+      NODE_INSTANCE_ID: recovery-worker-1
+      RECOVERY_AUTO_ENABLED: ${RECOVERY_AUTO_ENABLED:-false}
+      RECOVERY_STAGING_DIR: /var/lib/baykush/recovery
+      RECOVERY_DECODER_PATH: /usr/local/bin/baykush-mrt-decoder
+      RECOVERY_MAX_ATTEMPTS: ${RECOVERY_MAX_ATTEMPTS:-4}
+      RECOVERY_ARCHIVE_SETTLE_SECONDS: ${RECOVERY_ARCHIVE_SETTLE_SECONDS:-900}
+      RECOVERY_MAX_ARTIFACT_BYTES: ${RECOVERY_MAX_ARTIFACT_BYTES:-536870912}
+      RECOVERY_MIN_FREE_DISK_BYTES: ${RECOVERY_MIN_FREE_DISK_BYTES:-1073741824}
+      RECOVERY_ARTIFACT_RETENTION_HOURS: ${RECOVERY_ARTIFACT_RETENTION_HOURS:-24}
+      RECOVERY_DECODER_TIMEOUT_MS: ${RECOVERY_DECODER_TIMEOUT_MS:-300000}
+      RECOVERY_DECODER_MAX_OUTPUT_BYTES: ${RECOVERY_DECODER_MAX_OUTPUT_BYTES:-1073741824}
+      RECOVERY_DECODER_MAX_RECORDS: ${RECOVERY_DECODER_MAX_RECORDS:-10000000}
+      RECOVERY_PAUSE_ON_STREAM_UNHEALTHY: ${RECOVERY_PAUSE_ON_STREAM_UNHEALTHY:-true}
+    volumes:
+      - baykush_recovery:/var/lib/baykush/recovery
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=64m
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    pids_limit: 128
+    mem_limit: 1g
+    cpus: 1.0
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    restart: unless-stopped
+
 volumes:
   baykush_pgdata:
+  baykush_recovery:
