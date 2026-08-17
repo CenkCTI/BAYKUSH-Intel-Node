@@ -3,6 +3,8 @@ import { config } from "../config.js";
 import { pool, withTransaction } from "../db/pool.js";
 import { assertRecoveryRange, RECOVERY_POLICY_REVISION, stableSha256 } from "../recovery/policy.js";
 
+const MINUTE_MS = 60_000;
+
 export interface RipeMrtUpdateSegment {
   index: number;
   rrc: string;
@@ -29,6 +31,21 @@ function parseInstant(value: string): number {
   const ms = Date.parse(value);
   if (!Number.isFinite(ms)) throw new Error("Recovery time must be RFC3339");
   return ms;
+}
+
+export function normalizeRecoveryMinuteRange(from: string, to: string): { from: string; to: string } {
+  const fromMs = parseInstant(from);
+  const toMs = parseInstant(to);
+  if (toMs <= fromMs) throw new Error("Recovery to must be after from");
+  const minuteFrom = Math.floor(fromMs / MINUTE_MS) * MINUTE_MS;
+  const minuteTo = Math.ceil(toMs / MINUTE_MS) * MINUTE_MS;
+  return { from: new Date(minuteFrom).toISOString(), to: new Date(minuteTo).toISOString() };
+}
+
+function assertMinuteBoundary(value: number, label: string): void {
+  if (value % MINUTE_MS !== 0) {
+    throw new Error(`${label} falls inside a routing minute; split/promotion requires manual review`);
+  }
 }
 
 function assertRrc(rrc: string): string {
@@ -65,7 +82,7 @@ export function planRipeMrtUpdateSegments(input: {
   if (!Number.isInteger(maxSegments) || maxSegments < 1 || maxSegments > 10_000) {
     throw new Error("Invalid recovery segment bound");
   }
-  const interval = 5 * 60 * 1_000;
+  const interval = 5 * MINUTE_MS;
   let cursor = Math.floor(from / interval) * interval;
   const output: RipeMrtUpdateSegment[] = [];
   while (cursor < to) {
@@ -110,14 +127,15 @@ export function recoveryRequestFingerprint(input: {
 }
 
 async function insertPlan(input: InsertPlanInput): Promise<{ requestId: string; segments: number; fingerprint: string }> {
-  assertRecoveryRange(input.from, input.to, input.automatic);
+  const normalizedRange = normalizeRecoveryMinuteRange(input.from, input.to);
+  assertRecoveryRange(normalizedRange.from, normalizedRange.to, input.automatic);
   const rrcs = [...new Set(input.rrcs.map(assertRrc))].sort();
-  const plan = planRipeMrtUpdateSegments({ rrcs, from: input.from, to: input.to });
+  const plan = planRipeMrtUpdateSegments({ rrcs, from: normalizedRange.from, to: normalizedRange.to });
   const fingerprint = recoveryRequestFingerprint({
     sourceDefinitionId: input.sourceId,
     captureProfileRevisionId: input.profileId,
-    from: input.from,
-    to: input.to,
+    from: normalizedRange.from,
+    to: normalizedRange.to,
     rrcs,
     plan,
   });
@@ -137,7 +155,7 @@ async function insertPlan(input: InsertPlanInput): Promise<{ requestId: string; 
        ) VALUES($1,$2,$3,$4::jsonb,$5,'PLANNED',$6,$7,$8,$9,$10,$11,$12,$13,$14)
        RETURNING id`,
       [
-        input.sourceId, input.from, input.to, JSON.stringify(rrcs), input.reason, plan.length,
+        input.sourceId, normalizedRange.from, normalizedRange.to, JSON.stringify(rrcs), input.reason, plan.length,
         input.profileId, RECOVERY_POLICY_REVISION, fingerprint, input.priority ?? 100,
         input.automatic, input.triggerReason ?? null, input.triggerEventId ?? null, input.createdBy ?? null,
       ],
@@ -149,10 +167,7 @@ async function insertPlan(input: InsertPlanInput): Promise<{ requestId: string; 
         `INSERT INTO stream_recovery_segments(
            recovery_request_id,source_definition_id,segment_index,rrc,window_start,window_end,source_url
          ) VALUES($1,$2,$3,$4,$5,$6,$7)`,
-        [
-          requestId, input.sourceId, segment.index, segment.rrc,
-          segment.windowStart, segment.windowEnd, segment.url,
-        ],
+        [requestId, input.sourceId, segment.index, segment.rrc, segment.windowStart, segment.windowEnd, segment.url],
       );
     }
     return { requestId, segments: plan.length, fingerprint };
@@ -204,8 +219,15 @@ export async function persistProfileRecoveryPlan(input: {
   createdBy?: string;
   priority?: number;
 }): Promise<{ requestId: string; segments: number; fingerprint: string }> {
-  const profile = await pool.query<{ id: string; source_definition_id: string; rrc_set: unknown }>(
-    `SELECT profile.id,profile.source_definition_id,profile.rrc_set
+  const normalizedRange = normalizeRecoveryMinuteRange(input.from, input.to);
+  const profile = await pool.query<{
+    id: string;
+    source_definition_id: string;
+    rrc_set: unknown;
+    effective_from: Date;
+    retired_at: Date | null;
+  }>(
+    `SELECT profile.id,profile.source_definition_id,profile.rrc_set,profile.effective_from,profile.retired_at
      FROM stream_capture_profile_revisions profile
      JOIN source_definitions source ON source.id=profile.source_definition_id
      WHERE profile.id=$1 AND source.source_key='RIPE_RIS_BGP'`,
@@ -213,11 +235,16 @@ export async function persistProfileRecoveryPlan(input: {
   );
   const row = profile.rows[0];
   if (!row || !Array.isArray(row.rrc_set)) throw new Error("RIPE capture profile is unavailable");
+  const fromMs = Date.parse(normalizedRange.from);
+  const toMs = Date.parse(normalizedRange.to);
+  if (fromMs < row.effective_from.getTime() || (row.retired_at !== null && toMs > row.retired_at.getTime())) {
+    throw new Error("Selected capture profile does not cover the complete normalized recovery minutes");
+  }
   return insertPlan({
     sourceId: row.source_definition_id,
     profileId: row.id,
-    from: input.from,
-    to: input.to,
+    from: normalizedRange.from,
+    to: normalizedRange.to,
     rrcs: row.rrc_set.map(String),
     reason: input.reason,
     automatic: input.automatic ?? false,
@@ -239,7 +266,8 @@ export async function persistRecoveryRange(input: {
   priority?: number;
 }): Promise<Array<{ requestId: string; segments: number; fingerprint: string }>> {
   const automatic = input.automatic ?? false;
-  assertRecoveryRange(input.from, input.to, automatic);
+  const normalizedRange = normalizeRecoveryMinuteRange(input.from, input.to);
+  assertRecoveryRange(normalizedRange.from, normalizedRange.to, automatic);
   const source = await pool.query<{ id: string }>(
     `SELECT id FROM source_definitions WHERE source_key='RIPE_RIS_BGP'`,
   );
@@ -257,17 +285,22 @@ export async function persistRecoveryRange(input: {
        AND effective_from<$3::timestamptz
        AND COALESCE(retired_at,'infinity'::timestamptz)>$2::timestamptz
      ORDER BY effective_from`,
-    [sourceId, input.from, input.to],
+    [sourceId, normalizedRange.from, normalizedRange.to],
   );
   if ((profiles.rowCount ?? 0) === 0) throw new Error("No capture profile covers requested recovery range");
-  let cursor = Date.parse(input.from);
-  const end = Date.parse(input.to);
+
+  let cursor = Date.parse(normalizedRange.from);
+  const end = Date.parse(normalizedRange.to);
   const output: Array<{ requestId: string; segments: number; fingerprint: string }> = [];
   for (const profile of profiles.rows) {
-    const start = Math.max(cursor, profile.effective_from.getTime());
-    const stop = Math.min(end, profile.retired_at?.getTime() ?? end);
+    const profileStart = profile.effective_from.getTime();
+    const profileEnd = profile.retired_at?.getTime() ?? end;
+    const start = Math.max(cursor, profileStart);
+    const stop = Math.min(end, profileEnd);
     if (start > cursor) throw new Error("Capture profile coverage gap requires manual review");
     if (stop <= start) continue;
+    if (start > Date.parse(normalizedRange.from)) assertMinuteBoundary(start, "Capture profile transition");
+    if (stop < end) assertMinuteBoundary(stop, "Capture profile transition");
     if (!Array.isArray(profile.rrc_set)) throw new Error("Capture profile RRC population is invalid");
     output.push(await insertPlan({
       sourceId,
