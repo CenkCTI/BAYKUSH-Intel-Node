@@ -1,0 +1,154 @@
+name: NODE-6.2 real RIPE MRT acceptance
+
+on:
+  push:
+    branches:
+      - agent/node6-2-mrt-recovery
+
+permissions:
+  contents: write
+
+jobs:
+  real-mrt:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/node6-2-mrt-recovery
+          fetch-depth: 0
+
+      - name: Detect retained acceptance evidence
+        id: retained
+        shell: bash
+        run: |
+          if [ -f docs/acceptance/NODE_6_2_REAL_MRT_ACCEPTANCE.json ]; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+            echo "Retained real-MRT acceptance evidence already exists."
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Download fixed official RIPE MRT update artifact
+        if: steps.retained.outputs.exists != 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p .node6-2-fixture
+          url='https://data.ris.ripe.net/rrc00/2024.01/updates.20240101.0000.gz'
+          curl --fail --show-error --silent --location \
+            --proto '=https' --tlsv1.2 \
+            --retry 4 --retry-delay 3 --retry-all-errors \
+            --connect-timeout 15 --max-time 240 \
+            --max-filesize 536870912 \
+            --output .node6-2-fixture/updates.20240101.0000.gz \
+            "$url"
+          test -s .node6-2-fixture/updates.20240101.0000.gz
+          gzip -t .node6-2-fixture/updates.20240101.0000.gz
+
+      - name: Build production image with locked decoder graph
+        if: steps.retained.outputs.exists != 'true'
+        run: docker build -t baykush-intelligence-node:node6-2-real-mrt .
+
+      - name: Decode official artifact
+        if: steps.retained.outputs.exists != 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker run --rm \
+            -v "$PWD/.node6-2-fixture:/fixture:ro" \
+            baykush-intelligence-node:node6-2-real-mrt \
+            /usr/local/bin/baykush-mrt-decoder \
+            /fixture/updates.20240101.0000.gz \
+            > .node6-2-fixture/decoded.jsonl
+          test -s .node6-2-fixture/decoded.jsonl
+
+      - name: Validate message-level decoder contract
+        if: steps.retained.outputs.exists != 'true'
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import ipaddress
+          import json
+          from datetime import datetime
+          from pathlib import Path
+
+          path = Path('.node6-2-fixture/decoded.jsonl')
+          lines = [json.loads(line) for line in path.read_text().splitlines() if line.strip()]
+          if len(lines) < 2:
+              raise SystemExit('decoder emitted no UPDATE records')
+
+          summary = lines[-1]
+          records = lines[:-1]
+          assert summary['schemaVersion'] == 'NODE6_2_MRT_DECODER_SUMMARY_V1'
+          assert summary['updatesDecoded'] == len(records)
+          assert summary['updatesDecoded'] > 0
+          assert summary['recordsRejected'] == 0
+          assert summary['recordsRead'] >= summary['updatesDecoded']
+          assert summary['stateChangeRecords'] <= summary['ignoredValidRecords']
+          assert summary['updatesDecoded'] + summary['ignoredValidRecords'] <= summary['recordsRead']
+
+          window_start = datetime.fromisoformat('2024-01-01T00:00:00+00:00')
+          window_end = datetime.fromisoformat('2024-01-01T00:05:00+00:00')
+          for record in records:
+              assert record['schemaVersion'] == 'NODE6_2_MRT_DECODER_V1'
+              assert record['recordType'] == 'BGP4MP'
+              assert record['recordIndex'] >= 0
+              observed = datetime.fromisoformat(record['sourceObservedAt'].replace('Z', '+00:00'))
+              assert window_start <= observed < window_end
+              ipaddress.ip_address(record['peerIp'])
+              assert 0 <= record['peerAsn'] <= 4294967295
+              for prefix in record['announcedPrefixes'] + record['withdrawnPrefixes']:
+                  ipaddress.ip_network(prefix, strict=False)
+
+          Path('.node6-2-fixture/summary.json').write_text(json.dumps(summary, sort_keys=True))
+          print(json.dumps(summary, sort_keys=True))
+          PY
+
+      - name: Retain immutable acceptance evidence
+        if: steps.retained.outputs.exists != 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p docs/acceptance
+          artifact_sha="$(sha256sum .node6-2-fixture/updates.20240101.0000.gz | awk '{print $1}')"
+          artifact_bytes="$(stat -c '%s' .node6-2-fixture/updates.20240101.0000.gz)"
+          decoder_version="$(docker run --rm baykush-intelligence-node:node6-2-real-mrt /usr/local/bin/baykush-mrt-decoder --version)"
+          decoder_sha="$(docker run --rm baykush-intelligence-node:node6-2-real-mrt sha256sum /usr/local/bin/baykush-mrt-decoder | cut -d' ' -f1)"
+          export ARTIFACT_SHA="$artifact_sha" ARTIFACT_BYTES="$artifact_bytes" DECODER_VERSION="$decoder_version" DECODER_SHA="$decoder_sha"
+          python3 - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          summary = json.loads(Path('.node6-2-fixture/summary.json').read_text())
+          evidence = {
+              'schemaVersion': 'NODE6_2_REAL_MRT_ACCEPTANCE_V1',
+              'accepted': True,
+              'upstreamOrigin': 'RIPE_RIS',
+              'acquisitionChannel': 'RIS_MRT_UPDATE',
+              'fixture': {
+                  'rrc': 'rrc00',
+                  'windowStart': '2024-01-01T00:00:00.000Z',
+                  'windowEnd': '2024-01-01T00:05:00.000Z',
+                  'sourceUrl': 'https://data.ris.ripe.net/rrc00/2024.01/updates.20240101.0000.gz',
+                  'sha256': os.environ['ARTIFACT_SHA'],
+                  'compressedBytes': int(os.environ['ARTIFACT_BYTES']),
+              },
+              'decoder': {
+                  'version': os.environ['DECODER_VERSION'],
+                  'binarySha256': os.environ['DECODER_SHA'],
+                  'contractVersion': 'NODE6_2_MRT_DECODER_V1',
+                  'summaryContractVersion': 'NODE6_2_MRT_DECODER_SUMMARY_V1',
+              },
+              'summary': summary,
+              'gitCommitTested': os.environ['GITHUB_SHA'],
+          }
+          Path('docs/acceptance/NODE_6_2_REAL_MRT_ACCEPTANCE.json').write_text(
+              json.dumps(evidence, indent=2, sort_keys=True) + '\n'
+          )
+          PY
+          git config user.name "baykush-node-ci"
+          git config user.email "baykush-node-ci@users.noreply.github.com"
+          git add docs/acceptance/NODE_6_2_REAL_MRT_ACCEPTANCE.json
+          git commit -m "Record real RIPE MRT acceptance evidence"
+          git push origin HEAD:agent/node6-2-mrt-recovery

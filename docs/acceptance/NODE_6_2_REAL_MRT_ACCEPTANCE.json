@@ -1,0 +1,29 @@
+{
+  "accepted": true,
+  "acquisitionChannel": "RIS_MRT_UPDATE",
+  "decoder": {
+    "binarySha256": "48ab13980bdeb0f30cd78d0b749ea182c215a51d0c113a63613726f7ad88445c",
+    "contractVersion": "NODE6_2_MRT_DECODER_V1",
+    "summaryContractVersion": "NODE6_2_MRT_DECODER_SUMMARY_V1",
+    "version": "baykush-mrt-decoder/0.1.0+bgpkit-parser-0.18.0"
+  },
+  "fixture": {
+    "compressedBytes": 4236730,
+    "rrc": "rrc00",
+    "sha256": "25c7c8cdf797dcf03b3f6a40b5b8264827bedc2ed0d99b33204ce4cd34954313",
+    "sourceUrl": "https://data.ris.ripe.net/rrc00/2024.01/updates.20240101.0000.gz",
+    "windowEnd": "2024-01-01T00:05:00.000Z",
+    "windowStart": "2024-01-01T00:00:00.000Z"
+  },
+  "gitCommitTested": "d31f4256863ca725fce0b718e8f7fffdc1052d69",
+  "schemaVersion": "NODE6_2_REAL_MRT_ACCEPTANCE_V1",
+  "summary": {
+    "ignoredValidRecords": 765,
+    "recordsRead": 168108,
+    "recordsRejected": 0,
+    "schemaVersion": "NODE6_2_MRT_DECODER_SUMMARY_V1",
+    "stateChangeRecords": 138,
+    "updatesDecoded": 167343
+  },
+  "upstreamOrigin": "RIPE_RIS"
+}

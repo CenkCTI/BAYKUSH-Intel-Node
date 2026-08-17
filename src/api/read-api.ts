@@ -47,6 +47,46 @@ async function summary(url: URL, response: ServerResponse, id: string): Promise<
   sendEnvelope(response, 200, { range: preset, from:from.toISOString(),to:to.toISOString(),measurements }, id, { note: "Factual measurement summary; no global threat or risk score." });
 }
 
+async function routingBuckets(url: URL, response: ServerResponse, id: string): Promise<void> {
+  const allowed = new Set(["from","to","limit"]);
+  if ([...url.searchParams.keys()].some((key) => !allowed.has(key))) return sendError(response,400,"INVALID_REQUEST","Unsupported routing bucket filter",id);
+  const rawLimit=url.searchParams.get("limit")??"120";
+  if(!/^\d+$/.test(rawLimit))return sendError(response,400,"INVALID_REQUEST","limit must be an integer from 1 to 500",id);
+  const pageLimit=Number(rawLimit);if(pageLimit<1||pageLimit>500)return sendError(response,400,"INVALID_REQUEST","limit must be an integer from 1 to 500",id);
+  const toRaw=url.searchParams.get("to");const fromRaw=url.searchParams.get("from");
+  const to=toRaw?new Date(toRaw):new Date();const from=fromRaw?new Date(fromRaw):new Date(to.getTime()-60*60*1000);
+  if(!Number.isFinite(from.getTime())||!Number.isFinite(to.getTime())||to<=from)return sendError(response,400,"INVALID_REQUEST","from/to must be valid RFC3339 with to > from",id);
+  if(to.getTime()-from.getTime()>24*60*60*1000)return sendError(response,400,"INVALID_REQUEST","routing bucket range is limited to 24 hours",id);
+  const result=await pool.query(`SELECT
+      r.bucket_start AS "bucketStart",r.bucket_end AS "bucketEnd",
+      r.update_message_count::text AS "updateMessages",
+      r.announcement_prefix_event_count::text AS "announcementPrefixEvents",
+      r.withdrawal_prefix_event_count::text AS "withdrawalPrefixEvents",
+      jsonb_array_length(r.all_prefixes) AS "distinctPrefixesObserved",
+      jsonb_array_length(r.origin_asns) AS "distinctOriginAsnsObserved",
+      jsonb_array_length(r.rrcs) AS "rrcCount",
+      r.coverage_status AS "coverageStatus",r.data_availability AS "dataAvailability",
+      r.acquisition_basis AS "acquisitionBasis",
+      CASE r.acquisition_basis WHEN 'MRT_RECOVERY' THEN 'RIS_MRT_UPDATE' WHEN 'LIVE_STREAM' THEN 'RIS_LIVE_WEBSOCKET' ELSE r.acquisition_basis END AS "acquisitionChannel",
+      'RIPE_RIS' AS "upstreamOrigin",
+      COALESCE(r.live_collection_coverage_status,CASE WHEN r.acquisition_basis='LIVE_STREAM' THEN r.coverage_status ELSE 'NO_COVERAGE' END) AS "liveCollectionCoverage",
+      p.profile_key AS "captureProfileKey",p.profile_version AS "captureProfileVersion",
+      (r.acquisition_basis='MRT_RECOVERY') AS recovered,
+      CASE WHEN r.acquisition_basis='MRT_RECOVERY' THEN jsonb_build_object(
+        'status',rr.status,'expectedRrcCount',rr.expected_rrc_count,'projectedRrcCount',rr.projected_rrc_count,
+        'missingRrcs',rr.missing_rrcs,'recoveryAvailability',rr.data_availability
+      ) ELSE NULL END AS recovery
+    FROM source_definitions source
+    JOIN routing_minute_bucket_heads h ON h.source_definition_id=source.id
+    JOIN routing_minute_bucket_revisions r ON r.id=h.current_revision_id
+    LEFT JOIN stream_capture_profile_revisions p ON p.id=r.capture_profile_revision_id
+    LEFT JOIN routing_recovery_minute_heads rh ON rh.source_definition_id=r.source_definition_id AND rh.bucket_start=r.bucket_start AND rh.target_capture_profile_revision_id=r.capture_profile_revision_id
+    LEFT JOIN routing_recovery_minute_revisions rr ON rr.id=rh.current_revision_id
+    WHERE source.source_key='RIPE_RIS_BGP' AND h.bucket_start >= $1 AND h.bucket_start < $2
+    ORDER BY h.bucket_start DESC LIMIT $3`,[from.toISOString(),to.toISOString(),pageLimit]);
+  sendEnvelope(response,200,result.rows,id,{count:result.rows.length,selectedRange:{from:from.toISOString(),to:to.toISOString()},attribution:"RIPE NCC Routing Information Service (RIS)",note:"liveCollectionCoverage describes BAYKUSH live collection at the time. dataAvailability/acquisitionBasis may reflect later MRT recovery and do not rewrite live history."});
+}
+
 async function records(url: URL, response: ServerResponse, id: string): Promise<void> {
   const pageLimit = limit(url); if (!pageLimit) return sendError(response, 400, "INVALID_REQUEST", "limit must be an integer from 1 to 100", id);
   const allowed = new Set(["sourceKey","recordKind","entityId","from","to","cursor","limit"]);
@@ -67,6 +107,7 @@ export async function handleReadApi(request: IncomingMessage,response: ServerRes
   if(url.pathname==="/v1/sources"){await sources(response,id);return true;}
   if(url.pathname==="/v1/sources/status"){await statuses(url,response,id);return true;}
   if(url.pathname==="/v1/techint/summary"){await summary(url,response,id);return true;}
+  if(url.pathname==="/v1/techint/routing/buckets"){await routingBuckets(url,response,id);return true;}
   if(url.pathname==="/v1/techint/records"){await records(url,response,id);return true;}
   const entityMatch=url.pathname.match(/^\/v1\/techint\/entities\/(.+)$/);if(entityMatch?.[1]){await entity(decodeURIComponent(entityMatch[1]),response,id);return true;}
   return false;

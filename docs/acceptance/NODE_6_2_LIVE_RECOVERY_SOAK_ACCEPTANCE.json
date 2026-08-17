@@ -1,0 +1,101 @@
+{
+  "schemaVersion": "NODE6_2_LIVE_RECOVERY_SOAK_ACCEPTANCE_V1",
+  "accepted": true,
+  "testedAt": "2026-08-17T20:38:00.000Z",
+  "testedGitCommit": "14f0b5474a33045df1ff0f7a3673312bd281772d",
+  "environment": {
+    "cpuLogicalCores": 8,
+    "ramBytes": 10288103424,
+    "dockerVersion": "29.7.2",
+    "postgresql": "16-bookworm",
+    "databaseIsolation": "dedicated tmpfs-backed acceptance container"
+  },
+  "liveCaptureProfile": {
+    "provider": "RIPE RIS Live",
+    "actualCollector": true,
+    "rrcListReported": 23,
+    "sessionConnectedAt": "2026-08-17T20:33:34.665Z"
+  },
+  "recoveryFixture": {
+    "sourceUrl": "https://data.ris.ripe.net/rrc00/2024.01/updates.20240101.0000.gz",
+    "sha256": "25c7c8cdf797dcf03b3f6a40b5b8264827bedc2ed0d99b33204ce4cd34954313",
+    "requestResult": "SUCCEEDED",
+    "segmentResult": "PROJECTED",
+    "artifactBytes": 4236730,
+    "attempts": 1
+  },
+  "duration": {
+    "baselineSeconds": 61,
+    "concurrentRecoverySeconds": 60,
+    "postRecoverySeconds": 60
+  },
+  "baseline": {
+    "receivedMessagesDelta": 254011,
+    "persistedMessagesDelta": 258946,
+    "queueStart": 70,
+    "queueEnd": 135,
+    "queueDrainedDuringPhase": true,
+    "maximumDatabaseFlushMsObserved": 82
+  },
+  "concurrentRecovery": {
+    "receivedMessagesDelta": 272295,
+    "persistedMessagesDelta": 271274,
+    "queueStart": 1011,
+    "queueEnd": 2032,
+    "queueMinimumObserved": 0,
+    "queueMonotonicGrowth": false,
+    "maximumDatabaseFlushMsObserved": 82,
+    "recoveryCompletedAt": "2026-08-17T20:35:19.977Z"
+  },
+  "postRecovery": {
+    "receivedMessagesDelta": 226961,
+    "persistedMessagesDelta": 228492,
+    "queueStart": 2038,
+    "queueEnd": 507,
+    "queueMinimumObserved": 0,
+    "queueRecovered": true,
+    "maximumDatabaseFlushMsObserved": 83
+  },
+  "recoveryYieldVerification": {
+    "method": "controlled STREAM_WORKER heartbeat age in isolated acceptance database",
+    "staleHeartbeatAllowsRecovery": false,
+    "restoredHeartbeatAllowsRecovery": true,
+    "accepted": true
+  },
+  "resourceMeasurements": {
+    "postgresConcurrentMemory": "231.6MiB",
+    "postgresPostMemory": "304.8MiB",
+    "postgresConcurrentCpuPercentSnapshot": 2.2,
+    "postgresPostCpuPercentSnapshot": 16.9,
+    "availableDiskBytesBefore": 36428894208,
+    "note": "Application workers ran as host Node processes; no unexplained OOM, disk watermark, or forced termination occurred."
+  },
+  "observedEvents": {
+    "connected": 1,
+    "subscribed": 1,
+    "providerDisconnect": 0,
+    "backpressureLimit": 0,
+    "databaseUnavailable": 0,
+    "forcedTerminate": 0,
+    "schemaRejection": 0
+  },
+  "comparison": {
+    "liveContinued": true,
+    "throughputCollapsed": false,
+    "sustainedQueueGrowth": false,
+    "persistentLagRegressionObserved": false,
+    "recoveryStarvedLive": false,
+    "postRecoveryHealthy": true
+  },
+  "passCriteria": {
+    "realRipeLiveOperational": true,
+    "realRecoveryCompleted": true,
+    "noLiveDataLossIndicator": true,
+    "noMaterialSustainedQueueGrowth": true,
+    "noPersistentLagRegression": true,
+    "noDbFailureOrBackpressure": true,
+    "yieldVerified": true
+  },
+  "failures": [],
+  "notes": "Rates are phase counter deltas from persisted STREAM_TELEMETRY events, not replayed snapshots. Source-to-node lag had no dedicated numeric telemetry field; continued current live traffic, no disconnects, and queue drain behavior were used to detect persistent regression."
+}

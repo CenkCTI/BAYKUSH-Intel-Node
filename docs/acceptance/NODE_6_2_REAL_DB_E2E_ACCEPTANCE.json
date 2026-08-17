@@ -1,0 +1,291 @@
+{
+  "schemaVersion": "NODE6_2_REAL_DB_E2E_ACCEPTANCE_V1",
+  "accepted": true,
+  "testedAt": "2026-08-17T20:32:05.595Z",
+  "testedGitCommit": "14f0b5474a33045df1ff0f7a3673312bd281772d",
+  "postgresqlVersion": "PostgreSQL 16.14 (Debian 16.14-1.pgdg12+1) on x86_64-pc-linux-gnu, compiled by gcc (Debian 12.2.0-14+deb12u1) 12.2.0, 64-bit",
+  "fixture": {
+    "sourceUrl": "https://data.ris.ripe.net/rrc00/2024.01/updates.20240101.0000.gz",
+    "artifactSha256": "25c7c8cdf797dcf03b3f6a40b5b8264827bedc2ed0d99b33204ce4cd34954313",
+    "targetMinute": "2024-01-01T00:00:00.000Z",
+    "captureProfile": [
+      "rrc00"
+    ]
+  },
+  "recoveryRequestId": "8332a424-bd1b-4506-8c60-d531e2532a7c",
+  "productionPathChecks": {
+    "officialDownload": true,
+    "decoder": true,
+    "completeness": true,
+    "promotion": true,
+    "liveHistoryPreserved": true,
+    "readModelSeparation": true,
+    "noDoubleCounting": true,
+    "replayIdempotency": true,
+    "latePartialGuard": true,
+    "laterLiveComplete": true,
+    "changedShaLineage": true,
+    "missingRrcCannotComplete": true,
+    "validZero": true,
+    "aggregateRematerialization": true,
+    "apiSemanticProjection": true
+  },
+  "beforeState": {
+    "id": "39b5a74d-e500-4610-b9be-b405541ded2d",
+    "coverage_status": "PARTIAL",
+    "data_availability": "PARTIAL",
+    "acquisition_basis": "LIVE_STREAM",
+    "live_collection_coverage_status": "PARTIAL",
+    "update_message_count": "7"
+  },
+  "afterRecoveryState": {
+    "request_status": "SUCCEEDED",
+    "segment_state": "PROJECTED",
+    "artifact_sha": "25c7c8cdf797dcf03b3f6a40b5b8264827bedc2ed0d99b33204ce4cd34954313",
+    "compressed_bytes": "4236730",
+    "records_read": "168108",
+    "updates_decoded": "167343",
+    "state_change_records": "138",
+    "records_rejected": "0",
+    "decoder_binary_sha256": "48ab13980bdeb0f30cd78d0b749ea182c215a51d0c113a63613726f7ad88445c",
+    "recovery_status": "COMPLETE",
+    "recovery_availability": "AVAILABLE",
+    "expected_rrc_count": 1,
+    "projected_rrc_count": 1,
+    "missing_rrcs": [],
+    "current_revision_id": "ebb69ed8-d069-43f5-b8e8-dae5a621373e",
+    "acquisition_basis": "MRT_RECOVERY",
+    "coverage_status": "COMPLETE",
+    "data_availability": "AVAILABLE",
+    "live_collection_coverage_status": "PARTIAL",
+    "update_message_count": "37159",
+    "announcement_prefix_event_count": "79874"
+  },
+  "replayState": {
+    "sameRequestId": true,
+    "beforeCounts": {
+      "deltas": 1,
+      "mrt_revisions": 1
+    },
+    "afterCounts": {
+      "deltas": 1,
+      "mrt_revisions": 1
+    }
+  },
+  "lateLivePartialState": {
+    "id": "ebb69ed8-d069-43f5-b8e8-dae5a621373e",
+    "acquisition_basis": "MRT_RECOVERY",
+    "update_message_count": "37159"
+  },
+  "laterLiveCompleteState": {
+    "id": "28c0fa5f-1eb5-4e16-a267-e790384280dd",
+    "acquisition_basis": "LIVE_STREAM",
+    "coverage_status": "COMPLETE",
+    "update_message_count": "11"
+  },
+  "incompleteRrcTest": {
+    "semantic": {
+      "status": "PARTIAL",
+      "availability": "PARTIAL",
+      "missingRrcs": [
+        "rrc01"
+      ]
+    },
+    "persisted": {
+      "status": "PARTIAL",
+      "data_availability": "PARTIAL",
+      "expected_rrc_count": 2,
+      "projected_rrc_count": 1,
+      "missing_rrcs": [
+        "rrc01"
+      ]
+    }
+  },
+  "validZeroTest": {
+    "delta": {
+      "bucketStart": "2024-01-01T00:04:00.000Z",
+      "bucketEnd": "2024-01-01T00:05:00.000Z",
+      "updateMessages": 0,
+      "announcementPrefixEvents": 0,
+      "withdrawalPrefixEvents": 0,
+      "announcedPrefixes": [],
+      "withdrawnPrefixes": [],
+      "allPrefixes": [],
+      "originAsns": [],
+      "peerAsns": [],
+      "rrcs": [
+        "rrc00"
+      ],
+      "ipv4PrefixEvents": 0,
+      "ipv6PrefixEvents": 0,
+      "rejectedMessages": 0
+    },
+    "persisted": {
+      "status": "COMPLETE",
+      "data_availability": "AVAILABLE",
+      "update_message_count": "0",
+      "projected_rrcs": [
+        "rrc00"
+      ],
+      "missing_rrcs": []
+    }
+  },
+  "aggregateTests": [
+    {
+      "granularity": "DAY",
+      "value_numeric": "38598",
+      "coverage_status": "COMPLETE",
+      "data_availability": "AVAILABLE",
+      "comparison_context": {
+        "populationCompatible": true,
+        "routingAcquisitionBasis": "MIXED",
+        "captureProfileRevisionIds": [
+          "d83f87a9-b777-4141-98a9-4df5f410964f"
+        ],
+        "routingAcquisitionChannels": [
+          "LIVE_STREAM",
+          "MRT_RECOVERY"
+        ],
+        "liveCollectionCoverageStatuses": [
+          "COMPLETE",
+          "PARTIAL"
+        ]
+      },
+      "acquisition_summary": [
+        {
+          "basis": "MIXED",
+          "channels": [
+            "LIVE_STREAM",
+            "MRT_RECOVERY"
+          ],
+          "minuteRows": 1440,
+          "upstreamOrigin": "RIPE_RIS"
+        }
+      ]
+    },
+    {
+      "granularity": "FIVE_MINUTES",
+      "value_numeric": "37163",
+      "coverage_status": "COMPLETE",
+      "data_availability": "AVAILABLE",
+      "comparison_context": {
+        "populationCompatible": true,
+        "routingAcquisitionBasis": "MIXED",
+        "captureProfileRevisionIds": [
+          "d83f87a9-b777-4141-98a9-4df5f410964f"
+        ],
+        "routingAcquisitionChannels": [
+          "LIVE_STREAM",
+          "MRT_RECOVERY"
+        ],
+        "liveCollectionCoverageStatuses": [
+          "COMPLETE",
+          "PARTIAL"
+        ]
+      },
+      "acquisition_summary": [
+        {
+          "basis": "MIXED",
+          "channels": [
+            "LIVE_STREAM",
+            "MRT_RECOVERY"
+          ],
+          "minuteRows": 5,
+          "upstreamOrigin": "RIPE_RIS"
+        }
+      ]
+    },
+    {
+      "granularity": "HOUR",
+      "value_numeric": "37218",
+      "coverage_status": "COMPLETE",
+      "data_availability": "AVAILABLE",
+      "comparison_context": {
+        "populationCompatible": true,
+        "routingAcquisitionBasis": "MIXED",
+        "captureProfileRevisionIds": [
+          "d83f87a9-b777-4141-98a9-4df5f410964f"
+        ],
+        "routingAcquisitionChannels": [
+          "LIVE_STREAM",
+          "MRT_RECOVERY"
+        ],
+        "liveCollectionCoverageStatuses": [
+          "COMPLETE",
+          "PARTIAL"
+        ]
+      },
+      "acquisition_summary": [
+        {
+          "basis": "MIXED",
+          "channels": [
+            "LIVE_STREAM",
+            "MRT_RECOVERY"
+          ],
+          "minuteRows": 60,
+          "upstreamOrigin": "RIPE_RIS"
+        }
+      ]
+    },
+    {
+      "granularity": "ONE_MINUTE",
+      "value_numeric": "37159",
+      "coverage_status": "COMPLETE",
+      "data_availability": "AVAILABLE",
+      "comparison_context": {
+        "populationCompatible": true,
+        "routingAcquisitionBasis": "MRT_RECOVERY",
+        "captureProfileRevisionIds": [
+          "d83f87a9-b777-4141-98a9-4df5f410964f"
+        ],
+        "routingAcquisitionChannels": [
+          "MRT_RECOVERY"
+        ],
+        "liveCollectionCoverageStatuses": [
+          "PARTIAL"
+        ]
+      },
+      "acquisition_summary": [
+        {
+          "basis": "MRT_RECOVERY",
+          "channels": [
+            "MRT_RECOVERY"
+          ],
+          "minuteRows": 1,
+          "upstreamOrigin": "RIPE_RIS"
+        }
+      ]
+    }
+  ],
+  "apiContractTest": {
+    "semanticProjection": {
+      "coverageStatus": "COMPLETE",
+      "dataAvailability": "AVAILABLE",
+      "liveCollectionCoverage": "PARTIAL",
+      "acquisitionBasis": "MRT_RECOVERY",
+      "acquisitionChannel": "RIS_MRT_UPDATE",
+      "upstreamOrigin": "RIPE_RIS",
+      "captureProfileKey": "NODE6_2_REAL_DB_ACCEPTANCE_RRC00",
+      "captureProfileVersion": "v1"
+    },
+    "forbiddenFields": [
+      "artifactPath",
+      "decoderCommand",
+      "stack",
+      "rawBytes",
+      "secret"
+    ],
+    "forbiddenFieldsPresent": false
+  },
+  "changedShaLineageTest": {
+    "firstArtifactId": "7c4fec78-d39a-4a8d-9df9-e568603abe11",
+    "secondArtifactId": "33ae0245-889b-4bdd-919c-7b2ba4c0cc75",
+    "persisted": {
+      "artifact_count": 2,
+      "changed_events": 2
+    },
+    "note": "Controlled hashes exercise additive repository lineage; the official RIPE artifact was not modified."
+  },
+  "failures": [],
+  "notes": "The official fixture drives the real planner/fetch/decoder/projection/promotion path. Missing-RRC and valid-zero are controlled semantic fixtures and are not represented as official archive evidence."
+}
