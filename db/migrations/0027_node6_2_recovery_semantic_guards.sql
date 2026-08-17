@@ -11,7 +11,7 @@ BEGIN
   WHERE relation_row.relname='routing_recovery_minute_deltas'
     AND constraint_row.contype='u'
     AND (
-      SELECT array_agg(attribute_row.attname ORDER BY key_row.ordinality)
+      SELECT array_agg(attribute_row.attname::text ORDER BY key_row.ordinality)
       FROM unnest(constraint_row.conkey) WITH ORDINALITY AS key_row(attnum,ordinality)
       JOIN pg_attribute attribute_row
         ON attribute_row.attrelid=constraint_row.conrelid
