@@ -25,7 +25,7 @@ jobs:
       - name: Commit lockfile once
         shell: bash
         run: |
-          if git diff --quiet -- decoder/baykush-mrt-decoder/Cargo.lock; then
+          if [ -z "$(git status --porcelain -- decoder/baykush-mrt-decoder/Cargo.lock)" ]; then
             echo "Cargo.lock already matches Cargo.toml"
             exit 0
           fi
