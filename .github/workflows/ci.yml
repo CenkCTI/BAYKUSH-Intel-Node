@@ -77,9 +77,21 @@ jobs:
         run: npm run node3:final-audit
       - name: NODE-3 measurement security audit
         run: npm run node3:security-audit
+      - name: NODE-6.2 semantic unit acceptance
+        run: npm run test:node6-2
+      - name: NODE-6.2 PostgreSQL recovery acceptance
+        env:
+          NODE6_2_ACCEPTANCE_CONFIRMED: "true"
+        run: npm run test:node6-2-db
+      - name: NODE-6.2 final database invariant audit
+        run: npm run node6-2:final-audit
+      - name: NODE-6.2 security boundary audit
+        run: npm run node6-2:security-audit
       - name: Validate NODE-3 compose overlay
         run: docker compose -f docker-compose.yml -f docker-compose.node3.yml config >/dev/null
+      - name: Validate NODE-6.2 recovery compose service
+        run: docker compose config >/dev/null
       - name: Build
         run: npm run build
-      - name: Build container
+      - name: Build container including pinned MRT decoder
         run: docker build -t baykush-intelligence-node:ci .
