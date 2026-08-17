@@ -64,7 +64,7 @@ function urlFor(rrc: string, start: Date): string {
   const day = pad(start.getUTCDate());
   const hour = pad(start.getUTCHours());
   const minute = pad(start.getUTCMinutes());
-  return `https://data.ris.ripe.net/${rrc}/${year}.${month}/update.${year}${month}${day}.${hour}${minute}.gz`;
+  return `https://data.ris.ripe.net/${rrc}/${year}.${month}/updates.${year}${month}${day}.${hour}${minute}.gz`;
 }
 
 export function planRipeMrtUpdateSegments(input: {

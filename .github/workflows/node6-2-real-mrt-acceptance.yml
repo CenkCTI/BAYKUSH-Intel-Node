@@ -34,16 +34,16 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p .node6-2-fixture
-          url='https://data.ris.ripe.net/rrc00/2024.01/update.20240101.0000.gz'
+          url='https://data.ris.ripe.net/rrc00/2024.01/updates.20240101.0000.gz'
           curl --fail --show-error --silent --location \
             --proto '=https' --tlsv1.2 \
             --retry 4 --retry-delay 3 --retry-all-errors \
             --connect-timeout 15 --max-time 240 \
             --max-filesize 536870912 \
-            --output .node6-2-fixture/update.20240101.0000.gz \
+            --output .node6-2-fixture/updates.20240101.0000.gz \
             "$url"
-          test -s .node6-2-fixture/update.20240101.0000.gz
-          gzip -t .node6-2-fixture/update.20240101.0000.gz
+          test -s .node6-2-fixture/updates.20240101.0000.gz
+          gzip -t .node6-2-fixture/updates.20240101.0000.gz
 
       - name: Build production image with locked decoder graph
         if: steps.retained.outputs.exists != 'true'
@@ -58,7 +58,7 @@ jobs:
             -v "$PWD/.node6-2-fixture:/fixture:ro" \
             baykush-intelligence-node:node6-2-real-mrt \
             /usr/local/bin/baykush-mrt-decoder \
-            /fixture/update.20240101.0000.gz \
+            /fixture/updates.20240101.0000.gz \
             > .node6-2-fixture/decoded.jsonl
           test -s .node6-2-fixture/decoded.jsonl
 
@@ -110,8 +110,8 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p docs/acceptance
-          artifact_sha="$(sha256sum .node6-2-fixture/update.20240101.0000.gz | awk '{print $1}')"
-          artifact_bytes="$(stat -c '%s' .node6-2-fixture/update.20240101.0000.gz)"
+          artifact_sha="$(sha256sum .node6-2-fixture/updates.20240101.0000.gz | awk '{print $1}')"
+          artifact_bytes="$(stat -c '%s' .node6-2-fixture/updates.20240101.0000.gz)"
           decoder_version="$(docker run --rm baykush-intelligence-node:node6-2-real-mrt /usr/local/bin/baykush-mrt-decoder --version)"
           decoder_sha="$(docker run --rm baykush-intelligence-node:node6-2-real-mrt node -e \"const fs=require('fs'),c=require('crypto');console.log(c.createHash('sha256').update(fs.readFileSync('/usr/local/bin/baykush-mrt-decoder')).digest('hex'))\")"
           export ARTIFACT_SHA="$artifact_sha" ARTIFACT_BYTES="$artifact_bytes" DECODER_VERSION="$decoder_version" DECODER_SHA="$decoder_sha"
@@ -130,7 +130,7 @@ jobs:
                   'rrc': 'rrc00',
                   'windowStart': '2024-01-01T00:00:00.000Z',
                   'windowEnd': '2024-01-01T00:05:00.000Z',
-                  'sourceUrl': 'https://data.ris.ripe.net/rrc00/2024.01/update.20240101.0000.gz',
+                  'sourceUrl': 'https://data.ris.ripe.net/rrc00/2024.01/updates.20240101.0000.gz',
                   'sha256': os.environ['ARTIFACT_SHA'],
                   'compressedBytes': int(os.environ['ARTIFACT_BYTES']),
               },

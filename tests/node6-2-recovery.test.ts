@@ -99,9 +99,10 @@ describe("NODE-6.2 MRT recovery semantics", () => {
       from: "2026-08-15T12:21:00Z",
       to: "2026-08-15T12:22:00Z",
     })[0];
-    expect(segment?.url).toBe("https://data.ris.ripe.net/rrc00/2026.08/update.20260815.1220.gz");
+    expect(segment?.url).toBe("https://data.ris.ripe.net/rrc00/2026.08/updates.20260815.1220.gz");
     expect(assertOfficialRipeMrtUrl(segment!.url).hostname).toBe("data.ris.ripe.net");
-    expect(() => assertOfficialRipeMrtUrl("https://example.com/rrc00/2026.08/update.20260815.1220.gz")).toThrow();
+    expect(() => assertOfficialRipeMrtUrl("https://example.com/rrc00/2026.08/updates.20260815.1220.gz")).toThrow();
+    expect(() => assertOfficialRipeMrtUrl("https://data.ris.ripe.net/rrc00/2026.08/update.20260815.1220.gz")).toThrow();
     expect(() => assertOfficialRipeMrtUrl("https://data.ris.ripe.net/rrc00/2026.08/bview.20260815.1200.gz")).toThrow();
   });
 });

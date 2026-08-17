@@ -1,0 +1,110 @@
+{
+  "schemaVersion": "NODE6_2_CROSS_PARSER_ACCEPTANCE_V1",
+  "accepted": true,
+  "testedAt": "2026-08-17T20:24:33.744Z",
+  "testedGitCommit": "602888b8e39e8d30ddebbb4077f293e5f452be52",
+  "artifact": {
+    "sourceUrl": "https://data.ris.ripe.net/rrc00/2024.01/updates.20240101.0000.gz",
+    "sha256": "25c7c8cdf797dcf03b3f6a40b5b8264827bedc2ed0d99b33204ce4cd34954313",
+    "compressedBytes": 4236730,
+    "sameArtifactForBothParsers": true
+  },
+  "baykushDecoder": {
+    "wrapperVersion": "baykush-mrt-decoder/0.1.0+bgpkit-parser-0.18.0",
+    "bgpkitParserVersion": "0.18.0",
+    "binarySha256": "48ab13980bdeb0f30cd78d0b749ea182c215a51d0c113a63613726f7ad88445c",
+    "summary": {
+      "schemaVersion": "NODE6_2_MRT_DECODER_SUMMARY_V1",
+      "recordsRead": 168108,
+      "updatesDecoded": 167343,
+      "stateChangeRecords": 138,
+      "ignoredValidRecords": 765,
+      "recordsRejected": 0
+    },
+    "metrics": {
+      "announcementPrefixEventCount": 354316,
+      "withdrawalPrefixEventCount": 25058,
+      "uniqueAnnouncedPrefixes": {
+        "count": 14999,
+        "sortedSetSha256": "de8eede277b3b02606888da8043690528d5029ce3e077bbd0fcd371520e350d5"
+      },
+      "uniqueWithdrawnPrefixes": {
+        "count": 1432,
+        "sortedSetSha256": "ed1966b322bed423b6fbf210fadd2def6db6d30dfba7d185998945acc8846ccd"
+      },
+      "peerAsns": {
+        "count": 52,
+        "sortedSetSha256": "a84138888a75e431b9a72672bcfa2c2ed434a49c6687c57acb025f89368fe175"
+      },
+      "peerIps": {
+        "count": 98,
+        "sortedSetSha256": "0eb68ae80cd59cbd8ca19aa3a6876aa75dbf40387ec4b4af68607e8e8cf170d7"
+      },
+      "timestampMinimum": "2024-01-01T00:00:00.000Z",
+      "timestampMaximum": "2024-01-01T00:04:59.000Z",
+      "ipv4AnnouncementCount": 113047,
+      "ipv6AnnouncementCount": 241269,
+      "ipv4WithdrawalCount": 6860,
+      "ipv6WithdrawalCount": 18198,
+      "stateEventCount": 138
+    }
+  },
+  "libBGPStream": {
+    "version": "2.1.0",
+    "bgpreaderVersion": "2.1.0",
+    "image": "caida/bgpstream:2.1.0",
+    "imageDigest": "sha256:85ba51ac62caf406349a533a659d792c5e7df3aef239543c1ea4b5a1840c0288",
+    "interface": "singlefile",
+    "elementTypes": {
+      "A": 354316,
+      "W": 25058,
+      "S": 138
+    },
+    "metrics": {
+      "announcementPrefixEventCount": 354316,
+      "withdrawalPrefixEventCount": 25058,
+      "uniqueAnnouncedPrefixes": {
+        "count": 14999,
+        "sortedSetSha256": "de8eede277b3b02606888da8043690528d5029ce3e077bbd0fcd371520e350d5"
+      },
+      "uniqueWithdrawnPrefixes": {
+        "count": 1432,
+        "sortedSetSha256": "ed1966b322bed423b6fbf210fadd2def6db6d30dfba7d185998945acc8846ccd"
+      },
+      "peerAsns": {
+        "count": 52,
+        "sortedSetSha256": "a84138888a75e431b9a72672bcfa2c2ed434a49c6687c57acb025f89368fe175"
+      },
+      "peerIps": {
+        "count": 98,
+        "sortedSetSha256": "0eb68ae80cd59cbd8ca19aa3a6876aa75dbf40387ec4b4af68607e8e8cf170d7"
+      },
+      "timestampMinimum": "2024-01-01T00:00:00.000Z",
+      "timestampMaximum": "2024-01-01T00:04:59.000Z",
+      "ipv4AnnouncementCount": 113047,
+      "ipv6AnnouncementCount": 241269,
+      "ipv4WithdrawalCount": 6860,
+      "ipv6WithdrawalCount": 18198,
+      "stateEventCount": 138
+    }
+  },
+  "comparisons": {
+    "announcementPrefixEventCount": true,
+    "withdrawalPrefixEventCount": true,
+    "uniqueAnnouncedPrefixes": true,
+    "uniqueWithdrawnPrefixes": true,
+    "ipv4AnnouncementCount": true,
+    "ipv6AnnouncementCount": true,
+    "ipv4WithdrawalCount": true,
+    "ipv6WithdrawalCount": true,
+    "timestampRange": true,
+    "peerAsnSet": true,
+    "peerIpSet": true
+  },
+  "differences": [],
+  "explanation": "libBGPStream emits prefix/state elements, while BAYKUSH updatesDecoded counts physical BGP UPDATE messages; those totals are NOT_COMPARABLE and are not asserted equal. Peer sets are compared only across A/W prefix-bearing messages because bgpreader also emits state-event peers and emits no element for zero-prefix UPDATE messages.",
+  "commands": {
+    "baykush": "docker run --rm -v <acceptance-dir>:/fixture:ro <baykush-image> baykush-mrt-decoder /fixture/updates.20240101.0000.gz",
+    "libBGPStream": "docker run --rm -v <acceptance-dir>:/fixture:ro caida/bgpstream:2.1.0 bgpreader -d singlefile -o upd-file=/fixture/updates.20240101.0000.gz -w 1704067200,1704067500"
+  }
+}

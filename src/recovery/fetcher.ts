@@ -7,7 +7,7 @@ import { config } from "../config.js";
 import { RecoveryFailure } from "./errors.js";
 
 const RIPE_MRT_HOST = "data.ris.ripe.net";
-const RIPE_UPDATE_PATH = /^\/rrc\d{2}\/\d{4}\.\d{2}\/update\.\d{8}\.\d{4}\.gz$/;
+const RIPE_UPDATE_PATH = /^\/rrc\d{2}\/\d{4}\.\d{2}\/updates\.\d{8}\.\d{4}\.gz$/;
 
 export function assertOfficialRipeMrtUrl(value: string): URL {
   let url: URL;

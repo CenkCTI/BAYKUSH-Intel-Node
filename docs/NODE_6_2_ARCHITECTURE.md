@@ -2,7 +2,7 @@
 
 ## Mission
 
-NODE-6.2 repairs bounded gaps in the existing `RIPE_RIS_BGP` telemetry lane by replaying official RIPE RIS `update.*.gz` MRT artifacts. It is **not a new intelligence source**. RIS Live and RIS MRT have the same upstream origin, `RIPE_RIS`, and must never be counted as independent corroboration.
+NODE-6.2 repairs bounded gaps in the existing `RIPE_RIS_BGP` telemetry lane by replaying official RIPE RIS `updates.*.gz` MRT artifacts. It is **not a new intelligence source**. RIS Live and RIS MRT have the same upstream origin, `RIPE_RIS`, and must never be counted as independent corroboration.
 
 Pipeline:
 
