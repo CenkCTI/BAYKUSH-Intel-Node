@@ -66,7 +66,7 @@ async function run(): Promise<void> {
          '2200-01-01T00:00:00Z'::timestamptz,
          '2200-01-08T00:00:00Z'::timestamptz,
          interval '1 minute'
-       ) AS candidate
+       ) AS series(candidate)
        WHERE NOT EXISTS (
          SELECT 1 FROM routing_minute_bucket_revisions existing
          WHERE existing.source_definition_id=$1 AND existing.bucket_start=candidate
