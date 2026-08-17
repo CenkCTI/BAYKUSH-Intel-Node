@@ -1,0 +1,42 @@
+import type { PoolClient } from "pg";
+import { withTransaction } from "../db/pool.js";
+
+export async function purgeExpiredStreamPayloadsWithClient(
+  client: Pick<PoolClient, "query">,
+  limit = 10_000,
+): Promise<number> {
+  if (!Number.isInteger(limit) || limit < 1 || limit > 100_000) throw new Error("Invalid retention batch limit");
+  const run = await client.query<{ id: string }>(
+    `INSERT INTO stream_retention_runs(status) VALUES('RUNNING') RETURNING id`,
+  );
+  const runId = run.rows[0]?.id;
+  if (!runId) throw new Error("Failed to create retention run");
+  try {
+    const deleted = await client.query(
+      `DELETE FROM stream_segment_payloads
+       WHERE (segment_id,expires_at) IN (
+         SELECT segment_id,expires_at FROM stream_segment_payloads
+         WHERE expires_at<now() ORDER BY expires_at LIMIT $1
+       )`,
+      [limit],
+    );
+    const count = deleted.rowCount ?? 0;
+    await client.query(
+      `UPDATE stream_retention_runs
+       SET status='SUCCEEDED',finished_at=now(),payloads_deleted=$2 WHERE id=$1`,
+      [runId, count],
+    );
+    return count;
+  } catch (error) {
+    await client.query(
+      `UPDATE stream_retention_runs
+       SET status='FAILED',finished_at=now(),failure_message=$2 WHERE id=$1`,
+      [runId, error instanceof Error ? error.message : "retention failed"],
+    );
+    throw error;
+  }
+}
+
+export async function purgeExpiredStreamPayloads(limit = 10_000): Promise<number> {
+  return withTransaction((client) => purgeExpiredStreamPayloadsWithClient(client, limit));
+}

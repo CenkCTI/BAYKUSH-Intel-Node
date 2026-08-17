@@ -490,16 +490,33 @@ export async function discoverCoverageBuckets(
     const start = source.evaluated_through ?? source.earliest_schedule_at;
     if (start >= evaluatedAt) continue;
 
-    let maxEnd = start;
-    for (const granularity of ["FIVE_MINUTES", "HOUR", "DAY"] as const) {
-      const remaining = limit - inserted;
-      if (remaining <= 0) break;
-      const buckets = enumerateBuckets({
-        from: start.toISOString(),
-        to: evaluatedAt.toISOString(),
+    // The reconciliation cursor is shared by every granularity, so only move it
+    // across a range after all granularities for that range have been queued.
+    // Choose a bounded time slice that fits in the remaining batch instead of
+    // asking enumerateBuckets to throw when a new source has a long history.
+    const remaining = limit - inserted;
+    if (remaining < 3) break;
+    let sliceEnd = new Date(Math.min(
+      evaluatedAt.getTime(),
+      start.getTime() + Math.max(1, remaining - 2) * 5 * 60 * 1_000,
+    ));
+    let bucketsByGranularity: Array<{ granularity: "FIVE_MINUTES" | "HOUR" | "DAY"; buckets: ReturnType<typeof enumerateBuckets> }>;
+    while (true) {
+      bucketsByGranularity = (["FIVE_MINUTES", "HOUR", "DAY"] as const).map((granularity) => ({
         granularity,
-        maxBuckets: Math.min(remaining, 10_000),
-      });
+        buckets: enumerateBuckets({
+          from: start.toISOString(),
+          to: sliceEnd.toISOString(),
+          granularity,
+          maxBuckets: 10_000,
+        }),
+      }));
+      const bucketCount = bucketsByGranularity.reduce((sum, item) => sum + item.buckets.length, 0);
+      if (bucketCount <= remaining) break;
+      sliceEnd = new Date(start.getTime() + Math.max(1, Math.floor((sliceEnd.getTime() - start.getTime()) / 2)));
+    }
+
+    for (const { granularity, buckets } of bucketsByGranularity) {
       for (const bucket of buckets) {
         const result = await pool.query(
           `INSERT INTO source_coverage_dirty_buckets(
@@ -511,20 +528,16 @@ export async function discoverCoverageBuckets(
           [source.source_definition_id, granularity, bucket.start, bucket.end],
         );
         inserted += result.rowCount ?? 0;
-        const end = new Date(bucket.end);
-        if (end > maxEnd) maxEnd = end;
-        if (inserted >= limit) break;
       }
     }
 
-    if (maxEnd > start) {
-      await pool.query(
-        `UPDATE source_coverage_reconciliation_state
-         SET evaluated_through=$2,updated_at=now()
-         WHERE source_definition_id=$1`,
-        [source.source_definition_id, maxEnd],
-      );
-    }
+    await pool.query(
+      `INSERT INTO source_coverage_reconciliation_state(source_definition_id,evaluated_through)
+       VALUES($1,$2)
+       ON CONFLICT (source_definition_id) DO UPDATE
+       SET evaluated_through=EXCLUDED.evaluated_through,updated_at=now()`,
+      [source.source_definition_id, sliceEnd],
+    );
   }
 
   return inserted;
