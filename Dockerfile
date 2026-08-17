@@ -1,4 +1,4 @@
-FROM rust:1.87-bookworm AS mrt-decoder-build
+FROM rust:1.88-bookworm AS mrt-decoder-build
 WORKDIR /decoder
 COPY decoder/baykush-mrt-decoder/Cargo.toml ./Cargo.toml
 COPY decoder/baykush-mrt-decoder/src ./src
