@@ -2,7 +2,7 @@
   "schemaVersion": "NODE6_2_CROSS_PARSER_ACCEPTANCE_V1",
   "accepted": true,
   "testedAt": "2026-08-17T20:24:33.744Z",
-  "testedGitCommit": "602888b8e39e8d30ddebbb4077f293e5f452be52",
+  "testedGitCommit": "14f0b5474a33045df1ff0f7a3673312bd281772d",
   "artifact": {
     "sourceUrl": "https://data.ris.ripe.net/rrc00/2024.01/updates.20240101.0000.gz",
     "sha256": "25c7c8cdf797dcf03b3f6a40b5b8264827bedc2ed0d99b33204ce4cd34954313",

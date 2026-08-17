@@ -2,7 +2,7 @@
   "schemaVersion": "NODE6_2_REAL_DB_E2E_ACCEPTANCE_V1",
   "accepted": true,
   "testedAt": "2026-08-17T20:32:05.595Z",
-  "testedGitCommit": "602888b8e39e8d30ddebbb4077f293e5f452be52",
+  "testedGitCommit": "14f0b5474a33045df1ff0f7a3673312bd281772d",
   "postgresqlVersion": "PostgreSQL 16.14 (Debian 16.14-1.pgdg12+1) on x86_64-pc-linux-gnu, compiled by gcc (Debian 12.2.0-14+deb12u1) 12.2.0, 64-bit",
   "fixture": {
     "sourceUrl": "https://data.ris.ripe.net/rrc00/2024.01/updates.20240101.0000.gz",
