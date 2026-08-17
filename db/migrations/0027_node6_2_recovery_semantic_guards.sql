@@ -1,9 +1,36 @@
 BEGIN;
 
+DO $$
+DECLARE
+  old_constraint text;
+BEGIN
+  SELECT constraint_row.conname
+  INTO old_constraint
+  FROM pg_constraint constraint_row
+  JOIN pg_class relation_row ON relation_row.oid=constraint_row.conrelid
+  WHERE relation_row.relname='routing_recovery_minute_deltas'
+    AND constraint_row.contype='u'
+    AND (
+      SELECT array_agg(attribute_row.attname ORDER BY key_row.ordinality)
+      FROM unnest(constraint_row.conkey) WITH ORDINALITY AS key_row(attnum,ordinality)
+      JOIN pg_attribute attribute_row
+        ON attribute_row.attrelid=constraint_row.conrelid
+       AND attribute_row.attnum=key_row.attnum
+    )=ARRAY['recovery_segment_id','bucket_start']::text[]
+  LIMIT 1;
+
+  IF old_constraint IS NULL THEN
+    RAISE EXCEPTION 'Expected NODE-6.2 segment/bucket unique constraint was not found';
+  END IF;
+
+  EXECUTE format(
+    'ALTER TABLE routing_recovery_minute_deltas DROP CONSTRAINT %I',
+    old_constraint
+  );
+END; $$;
+
 ALTER TABLE routing_recovery_minute_deltas
-  DROP CONSTRAINT routing_recovery_minute_deltas_recovery_segment_id_bucket_start_key;
-ALTER TABLE routing_recovery_minute_deltas
-  ADD CONSTRAINT routing_recovery_minute_deltas_segment_artifact_bucket_uq
+  ADD CONSTRAINT routing_recovery_deltas_segment_artifact_bucket_uq
   UNIQUE(recovery_segment_id,artifact_id,bucket_start);
 
 ALTER TABLE stream_recovery_requests
