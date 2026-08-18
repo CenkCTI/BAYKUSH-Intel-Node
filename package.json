@@ -53,6 +53,7 @@
     "dev:backfill": "tsx src/backfill/main.ts",
     "dev:stream": "tsx src/stream/main.ts",
     "dev:recovery": "tsx src/recovery/main.ts",
+    "dev:discovery": "tsx src/discovery/worker/main.ts",
     "sources": "tsx src/cli/sources.ts",
     "start:api": "node dist/api/main.js",
     "start:scheduler": "node dist/scheduler/main.js",
@@ -61,7 +62,8 @@
     "start:measurement": "node dist/measurement/main.js",
     "start:backfill": "node dist/backfill/main.js",
     "start:stream": "node dist/stream/main.js",
-    "start:recovery": "node dist/recovery/main.js"
+    "start:recovery": "node dist/recovery/main.js",
+    "start:discovery": "node dist/discovery/worker/main.js"
   },
   "dependencies": {
     "csv-parse": "^7.0.1",
