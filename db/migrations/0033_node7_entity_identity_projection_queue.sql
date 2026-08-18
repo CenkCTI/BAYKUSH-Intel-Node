@@ -11,19 +11,29 @@ CREATE TABLE technical_entity_registry (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   entity_type text NOT NULL CHECK (length(btrim(entity_type)) > 0),
   entity_key text NOT NULL CHECK (length(entity_key) > 0),
-  identity_sha256 char(64) GENERATED ALWAYS AS (
-    encode(
-      digest(
-        convert_to(entity_type, 'UTF8') || decode('00', 'hex') || convert_to(entity_key, 'UTF8'),
-        'sha256'
-      ),
-      'hex'
-    )::char(64)
-  ) STORED,
+  identity_sha256 char(64) NOT NULL CHECK (identity_sha256 ~ '^[0-9a-f]{64}$'),
   created_at timestamptz NOT NULL DEFAULT now(),
   UNIQUE(entity_type, entity_key),
   UNIQUE(identity_sha256)
 );
+
+CREATE OR REPLACE FUNCTION prepare_node7_entity_registry_identity()
+RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+  NEW.identity_sha256 := encode(
+    digest(
+      convert_to(NEW.entity_type, 'UTF8') || decode('00', 'hex') || convert_to(NEW.entity_key, 'UTF8'),
+      'sha256'
+    ),
+    'hex'
+  )::char(64);
+  RETURN NEW;
+END;
+$$;
+
+CREATE TRIGGER technical_entity_registry_prepare_insert
+BEFORE INSERT ON technical_entity_registry
+FOR EACH ROW EXECUTE FUNCTION prepare_node7_entity_registry_identity();
 
 CREATE OR REPLACE FUNCTION reject_node7_entity_registry_mutation()
 RETURNS trigger LANGUAGE plpgsql AS $$
