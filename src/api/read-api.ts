@@ -3,6 +3,7 @@ import { pool } from "../db/pool.js";
 import { publicMeasurementRegistry } from "../measurement/registry.js";
 import { summarizeMeasurementPeriod } from "../measurement/comparison.js";
 import { sendEnvelope, sendError } from "./http.js";
+import { routingStatus } from "./routing-status.js";
 
 export const publicSourceKeys = [
   "CISA_KEV",
@@ -107,6 +108,7 @@ export async function handleReadApi(request: IncomingMessage,response: ServerRes
   if(url.pathname==="/v1/sources"){await sources(response,id);return true;}
   if(url.pathname==="/v1/sources/status"){await statuses(url,response,id);return true;}
   if(url.pathname==="/v1/techint/summary"){await summary(url,response,id);return true;}
+  if(url.pathname==="/v1/techint/routing/status"){await routingStatus(response,id);return true;}
   if(url.pathname==="/v1/techint/routing/buckets"){await routingBuckets(url,response,id);return true;}
   if(url.pathname==="/v1/techint/records"){await records(url,response,id);return true;}
   const entityMatch=url.pathname.match(/^\/v1\/techint\/entities\/(.+)$/);if(entityMatch?.[1]){await entity(decodeURIComponent(entityMatch[1]),response,id);return true;}

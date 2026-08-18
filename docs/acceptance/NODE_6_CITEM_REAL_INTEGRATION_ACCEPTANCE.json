@@ -1,0 +1,87 @@
+{
+  "accepted": true,
+  "citemCommit": "b8f8ed06bfefd73b46df2d9eeae4b3f6dd60c512",
+  "consumerAssertions": {
+    "coreAndRoutingMeasurementFailureDomainsSeparated": true,
+    "liveAndRecoveredProvenanceAccepted": true,
+    "noCoverageNotFlattenedToZero": true,
+    "nodeOwnedAutoResolutionUsed": true,
+    "producerBearerTokenRemainedServerSide": true,
+    "routingStatusSchemaAccepted": true,
+    "sevenRoutingMeasurementContractsAccepted": true
+  },
+  "liveHead": {
+    "acquisitionBasis": "LIVE_STREAM",
+    "acquisitionChannel": "RIS_LIVE_WEBSOCKET",
+    "announcementPrefixEvents": "14684",
+    "bucketEnd": "2026-08-18T10:08:00.000Z",
+    "bucketStart": "2026-08-18T10:07:00.000Z",
+    "captureProfileKey": "RIPE_RIS_ACTIVE_RRCS",
+    "captureProfileRrcCount": 23,
+    "captureProfileVersion": "rrc-2a802229c130d59e",
+    "coverageStatus": "PARTIAL",
+    "dataAvailability": "PARTIAL",
+    "distinctOriginAsnsObserved": 1164,
+    "distinctPrefixesObserved": 9787,
+    "liveCollectionCoverage": "PARTIAL",
+    "rrcCount": 14,
+    "updateMessages": "5712",
+    "withdrawalPrefixEvents": "5213"
+  },
+  "nodeCommit": "b89ed6b900a88a814f897de913b91c312fb5dbe9",
+  "producerRef": "agent/node6-3-citem-consumer-contract",
+  "recovery": {
+    "fixture": {
+      "accepted": true,
+      "acquisitionBasis": "MRT_RECOVERY",
+      "artifactSha256": "25c7c8cdf797dcf03b3f6a40b5b8264827bedc2ed0d99b33204ce4cd34954313",
+      "coverageStatus": "COMPLETE",
+      "dataAvailability": "AVAILABLE",
+      "liveCollectionCoverage": "PARTIAL",
+      "requestId": "a93dba90-1a0c-48a8-9252-cd3e2b169dfb",
+      "schemaVersion": "NODE6_3_CITEM_RECOVERY_FIXTURE_V1",
+      "sourceUrl": "https://data.ris.ripe.net/rrc00/2024.01/updates.20240101.0000.gz",
+      "target": "2024-01-01T00:00:00.000Z",
+      "updateMessages": "37159"
+    },
+    "latestRequestCompletedAt": "2026-08-18T10:08:05.634Z",
+    "latestRequestStatus": "SUCCEEDED",
+    "recoveredHead": {
+      "acquisitionBasis": "MRT_RECOVERY",
+      "acquisitionChannel": "RIS_MRT_UPDATE",
+      "announcementPrefixEvents": "79874",
+      "bucketEnd": "2024-01-01T00:01:00.000Z",
+      "bucketStart": "2024-01-01T00:00:00.000Z",
+      "captureProfileKey": "NODE6_3_CITEM_RECOVERY_ACCEPTANCE_RRC00",
+      "captureProfileRrcCount": 1,
+      "captureProfileVersion": "v1",
+      "coverageStatus": "COMPLETE",
+      "dataAvailability": "AVAILABLE",
+      "distinctOriginAsnsObserved": 1423,
+      "distinctPrefixesObserved": 7062,
+      "liveCollectionCoverage": "PARTIAL",
+      "rrcCount": 1,
+      "updateMessages": "37159",
+      "withdrawalPrefixEvents": "4094"
+    },
+    "workerHeartbeatFreshness": "FRESH"
+  },
+  "schemaVersion": "NODE6_CITEM_REAL_INTEGRATION_ACCEPTANCE_V2",
+  "sourceKey": "RIPE_RIS_BGP",
+  "stream": {
+    "heartbeatFreshness": "FRESH",
+    "latestNodeReceivedAt": "2026-08-18T10:11:01.964Z",
+    "latestSourceObservedAt": "2026-08-18T10:10:59.700Z",
+    "messagesObserved": "787355",
+    "segmentsPersisted": "607",
+    "sessionStatus": "STREAMING"
+  },
+  "testedAt": "2026-08-18T10:11:04Z",
+  "upstreamOrigin": "RIPE_RIS",
+  "workflow": {
+    "citemRepository": "CenkCTI/CIP",
+    "innerRunId": 32125005111,
+    "outerGateRunId": 32124997379,
+    "result": "SUCCESS"
+  }
+}
