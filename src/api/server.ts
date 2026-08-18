@@ -4,6 +4,7 @@ import { handleMeasurementApi } from "../measurement/api.js";
 import { handleMeasurementProvenanceApi } from "../measurement/provenance-api.js";
 import { authenticate, configuredApiToken, isProtectedPath } from "./auth.js";
 import { requestId, sendEnvelope, sendError } from "./http.js";
+import { handleNode7ReadApi } from "./node7-read-api.js";
 import { handleReadApi } from "./read-api.js";
 
 async function health(response: ServerResponse, id: string): Promise<void> {
@@ -16,6 +17,7 @@ async function routeRequest(
   url: URL,
   id: string,
 ): Promise<void> {
+  if (await handleNode7ReadApi(request, response, url, id)) return;
   if (await handleReadApi(request, response, url, id)) return;
   if (await handleMeasurementProvenanceApi(request, response, url)) return;
   if (await handleComparisonApi(request, response, url)) return;
