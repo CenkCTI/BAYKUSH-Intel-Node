@@ -87,6 +87,8 @@ jobs:
         run: npm run node6-2:final-audit
       - name: NODE-6.2 security boundary audit
         run: npm run node6-2:security-audit
+      - name: NODE-7 PostgreSQL discovery acceptance
+        run: npm run test:node7
       - name: Validate NODE-3 compose overlay
         run: docker compose -f docker-compose.yml -f docker-compose.node3.yml config >/dev/null
       - name: Validate NODE-6.2 recovery compose service
