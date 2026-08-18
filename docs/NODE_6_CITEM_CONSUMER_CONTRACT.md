@@ -110,6 +110,22 @@ That state means the data was repaired later; it does not mean BAYKUSH collected
 
 The fixture starts from a persisted LIVE `PARTIAL` minute, executes official MRT recovery, and requires the current historical head to become `MRT_RECOVERY / COMPLETE / AVAILABLE` while preserving `liveCollectionCoverage=PARTIAL`. It is not a normal CI unit test and must not be substituted with synthetic recovery data for production acceptance.
 
+## Accepted downstream evidence
+
+The real downstream acceptance was completed on 2026-08-18 against:
+
+- Node tested commit: `b89ed6b900a88a814f897de913b91c312fb5dbe9`;
+- CİTEM tested commit: `b8f8ed06bfefd73b46df2d9eeae4b3f6dd60c512`;
+- CİTEM real acceptance run: `32125005111`;
+- PR-visible acceptance gate run: `32124997379`;
+- official MRT artifact SHA-256: `25c7c8cdf797dcf03b3f6a40b5b8264827bedc2ed0d99b33204ce4cd34954313`.
+
+The run simultaneously proved an actual RIPE RIS Live `STREAMING / FRESH` session and a retained official-MRT recovered historical head. The recovered head was `MRT_RECOVERY / COMPLETE / AVAILABLE` while its original `liveCollectionCoverage` remained `PARTIAL`.
+
+The machine-readable retained record is:
+
+`docs/acceptance/NODE_6_CITEM_REAL_INTEGRATION_ACCEPTANCE.json`
+
 ## NODE-6 exit condition
 
 NODE-6 consumer closure is complete only when CİTEM Global View contains an independent `Internet Infrastructure` lane that:
@@ -120,3 +136,5 @@ NODE-6 consumer closure is complete only when CİTEM Global View contains an ind
 4. remains isolated from Vulnerability and Malware/IOC semantics;
 5. degrades safely if routing telemetry or the Node is unavailable;
 6. passes real RIPE Live plus official MRT recovery downstream acceptance through the CİTEM consumer contract.
+
+All six conditions were satisfied by the accepted run above. NODE-6 consumer closure is therefore technically complete; merge timing remains an operator decision.
