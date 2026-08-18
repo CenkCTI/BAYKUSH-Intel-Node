@@ -108,6 +108,24 @@ services:
         condition: service_completed_successfully
     restart: unless-stopped
 
+  node7-worker:
+    build: .
+    command: ["node", "dist/node7/main.js"]
+    environment:
+      <<: *node-env
+      NODE_INSTANCE_ID: node7-worker-1
+      NODE7_IDLE_MS: ${NODE7_IDLE_MS:-1000}
+      NODE7_DISCOVERY_BATCH: ${NODE7_DISCOVERY_BATCH:-500}
+      NODE7_PROCESS_BATCH: ${NODE7_PROCESS_BATCH:-100}
+      NODE7_LEASE_SECONDS: ${NODE7_LEASE_SECONDS:-60}
+      NODE7_MAX_ATTEMPTS: ${NODE7_MAX_ATTEMPTS:-5}
+      NODE7_RETRY_BASE_SECONDS: ${NODE7_RETRY_BASE_SECONDS:-5}
+      NODE7_RETRY_MAX_SECONDS: ${NODE7_RETRY_MAX_SECONDS:-300}
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    restart: unless-stopped
+
   stream-worker:
     build: .
     command: ["node", "dist/stream/main.js"]

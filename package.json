@@ -28,6 +28,7 @@
     "test:node6-2-cross-parser": "node scripts/node6-2-cross-parser-acceptance.mjs",
     "test:node6-2-real-db": "tsx scripts/node6-2-real-db-e2e-acceptance.ts",
     "test:node6-2-soak-evidence": "tsx scripts/node6-2-live-recovery-soak.ts",
+    "test:node7ab": "vitest run tests/node7-contracts.test.ts",
     "node2g:status": "tsx scripts/node2g-status.ts",
     "node2g:report": "tsx scripts/node2g-report.ts",
     "node2g:export-node": "tsx scripts/node2g-export-node.ts",
@@ -53,6 +54,7 @@
     "dev:backfill": "tsx src/backfill/main.ts",
     "dev:stream": "tsx src/stream/main.ts",
     "dev:recovery": "tsx src/recovery/main.ts",
+    "dev:node7": "tsx src/node7/main.ts",
     "sources": "tsx src/cli/sources.ts",
     "start:api": "node dist/api/main.js",
     "start:scheduler": "node dist/scheduler/main.js",
@@ -61,7 +63,8 @@
     "start:measurement": "node dist/measurement/main.js",
     "start:backfill": "node dist/backfill/main.js",
     "start:stream": "node dist/stream/main.js",
-    "start:recovery": "node dist/recovery/main.js"
+    "start:recovery": "node dist/recovery/main.js",
+    "start:node7": "node dist/node7/main.js"
   },
   "dependencies": {
     "csv-parse": "^7.0.1",
