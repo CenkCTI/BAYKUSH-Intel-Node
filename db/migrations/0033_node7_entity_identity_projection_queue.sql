@@ -12,7 +12,13 @@ CREATE TABLE technical_entity_registry (
   entity_type text NOT NULL CHECK (length(btrim(entity_type)) > 0),
   entity_key text NOT NULL CHECK (length(entity_key) > 0),
   identity_sha256 char(64) GENERATED ALWAYS AS (
-    encode(digest(entity_type || chr(0) || entity_key, 'sha256'), 'hex')::char(64)
+    encode(
+      digest(
+        convert_to(entity_type, 'UTF8') || decode('00', 'hex') || convert_to(entity_key, 'UTF8'),
+        'sha256'
+      ),
+      'hex'
+    )::char(64)
   ) STORED,
   created_at timestamptz NOT NULL DEFAULT now(),
   UNIQUE(entity_type, entity_key),
