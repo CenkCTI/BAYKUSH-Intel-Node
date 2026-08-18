@@ -292,9 +292,11 @@ async function recomputeConvergence(client: PoolClient, job: ConvergenceJobRow):
     [job.policy_revision_id],
   );
   const config = policy.rows[0]?.config;
-  const concurrentWindowHours = typeof config === "object" && config !== null && !Array.isArray(config)
-    && typeof (config as Record<string, unknown>).concurrentWindowHours === "number"
-    ? (config as Record<string, number>).concurrentWindowHours
+  const concurrentWindowValue = typeof config === "object" && config !== null && !Array.isArray(config)
+    ? (config as Record<string, unknown>).concurrentWindowHours
+    : undefined;
+  const concurrentWindowHours = typeof concurrentWindowValue === "number" && Number.isFinite(concurrentWindowValue)
+    ? concurrentWindowValue
     : 6;
 
   const classification = activity.state === "ACTIVE"
