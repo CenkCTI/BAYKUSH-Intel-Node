@@ -27,6 +27,16 @@ async function routeRequest(
   sendError(response, 404, "NOT_FOUND", "Route not found", id);
 }
 
+function isControlledNode7RequestError(error: unknown): error is Error {
+  if (!(error instanceof Error)) return false;
+  return [
+    "Exact entity type/key required",
+    "Related-record limit must be 1..100",
+    "Lineage depth must be 1..3",
+    "Lineage node limit must be 1..100",
+  ].includes(error.message);
+}
+
 export function createApiServer(options: { apiToken?: string | null } = {}) {
   const apiToken = options.apiToken === undefined ? configuredApiToken() : configuredApiToken(options.apiToken ?? undefined);
   return createServer((request: IncomingMessage, response: ServerResponse) => {
@@ -40,8 +50,12 @@ export function createApiServer(options: { apiToken?: string | null } = {}) {
     if (isProtectedPath(url.pathname) && !authenticate(request, apiToken)) { sendError(response, 401, "UNAUTHORIZED", "Valid service credential required", id); return; }
     if (isProtectedPath(url.pathname) && request.method !== "GET") { sendError(response, 405, "METHOD_NOT_ALLOWED", "Method not allowed", id); return; }
 
-    void routeRequest(request, response, url, id).catch(() => {
+    void routeRequest(request, response, url, id).catch((error: unknown) => {
       if (response.writableEnded) return;
+      if (isControlledNode7RequestError(error)) {
+        sendError(response, 400, "INVALID_REQUEST", error.message, id);
+        return;
+      }
       sendError(response, 500, "INTERNAL_ERROR", "Request failed", id);
     });
   });
