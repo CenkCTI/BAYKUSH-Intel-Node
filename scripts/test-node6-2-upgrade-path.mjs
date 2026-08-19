@@ -17,6 +17,7 @@ const testUrl = new URL(base);
 testUrl.pathname = `/${databaseName}`;
 const migrationsDir = path.resolve(process.cwd(), "db/migrations");
 const admin = new Client({ connectionString: adminUrl.toString() });
+let adminConnected = false;
 let client;
 
 async function applyMigration(filename) {
@@ -34,6 +35,7 @@ async function dropTemporaryDatabase() {
 
 try {
   await admin.connect();
+  adminConnected = true;
   await admin.query(`CREATE DATABASE "${databaseName}"`);
   client = new Client({ connectionString: testUrl.toString() });
   await client.connect();
@@ -99,9 +101,9 @@ try {
            AND r.bucket_start=head.bucket_start) AS revision_count
      FROM routing_minute_bucket_heads head
      JOIN routing_minute_bucket_revisions current ON current.id=head.current_revision_id
-     JOIN routing_minute_bucket_revisions original ON original.id=$4
+     JOIN routing_minute_bucket_revisions original ON original.id=$3
      WHERE head.source_definition_id=$1 AND head.bucket_start=$2`,
-    [sourceDefinitionId, bucketStart, bucketEnd, originalRevisionId],
+    [sourceDefinitionId, bucketStart, originalRevisionId],
   );
   const row = result.rows[0];
   if (!row) throw new Error("Upgraded routing head missing");
@@ -139,7 +141,7 @@ try {
   }, null, 2));
 } finally {
   if (client) await client.end().catch(() => undefined);
-  if (admin._connected) {
+  if (adminConnected) {
     await dropTemporaryDatabase().catch(() => undefined);
     await admin.end().catch(() => undefined);
   }
