@@ -205,9 +205,71 @@ CREATE TABLE routing_recovery_minute_heads (
 ALTER TABLE routing_minute_bucket_revisions
   ADD COLUMN live_collection_coverage_status text
     CHECK (live_collection_coverage_status IS NULL OR live_collection_coverage_status IN ('COMPLETE','PARTIAL','DEGRADED','NO_COVERAGE'));
-UPDATE routing_minute_bucket_revisions
-SET live_collection_coverage_status=coverage_status
-WHERE acquisition_basis='LIVE_STREAM' AND live_collection_coverage_status IS NULL;
+
+-- NODE-6 routing revisions are append-only. Existing LIVE_STREAM heads created before
+-- live_collection_coverage_status existed must therefore be superseded by a new revision;
+-- mutating the historical revision would violate the immutable revision contract.
+WITH candidates AS (
+  SELECT
+    h.source_definition_id,
+    h.bucket_start,
+    h.bucket_end,
+    h.current_revision_id AS superseded_revision_id,
+    r.capture_profile_revision_id,
+    r.update_message_count,
+    r.announcement_prefix_event_count,
+    r.withdrawal_prefix_event_count,
+    r.announced_prefixes,
+    r.withdrawn_prefixes,
+    r.all_prefixes,
+    r.origin_asns,
+    r.peer_asns,
+    r.rrcs,
+    r.coverage_status,
+    r.data_availability,
+    r.acquisition_basis,
+    r.input_segment_count,
+    encode(
+      digest(
+        r.input_fingerprint || '|NODE6_2_LIVE_COVERAGE_BACKFILL|' || r.coverage_status,
+        'sha256'
+      ),
+      'hex'
+    )::char(64) AS input_fingerprint,
+    (
+      SELECT max(revision_row.revision_number) + 1
+      FROM routing_minute_bucket_revisions revision_row
+      WHERE revision_row.source_definition_id=h.source_definition_id
+        AND revision_row.bucket_start=h.bucket_start
+    ) AS revision_number
+  FROM routing_minute_bucket_heads h
+  JOIN routing_minute_bucket_revisions r ON r.id=h.current_revision_id
+  WHERE r.acquisition_basis='LIVE_STREAM'
+    AND r.live_collection_coverage_status IS NULL
+), appended AS (
+  INSERT INTO routing_minute_bucket_revisions(
+    source_definition_id,capture_profile_revision_id,bucket_start,bucket_end,
+    update_message_count,announcement_prefix_event_count,withdrawal_prefix_event_count,
+    announced_prefixes,withdrawn_prefixes,all_prefixes,origin_asns,peer_asns,rrcs,
+    coverage_status,data_availability,acquisition_basis,input_segment_count,input_fingerprint,
+    revision_number,supersedes_revision_id,calculated_at,live_collection_coverage_status
+  )
+  SELECT
+    source_definition_id,capture_profile_revision_id,bucket_start,bucket_end,
+    update_message_count,announcement_prefix_event_count,withdrawal_prefix_event_count,
+    announced_prefixes,withdrawn_prefixes,all_prefixes,origin_asns,peer_asns,rrcs,
+    coverage_status,data_availability,acquisition_basis,input_segment_count,input_fingerprint,
+    revision_number,superseded_revision_id,now(),coverage_status
+  FROM candidates
+  RETURNING id,source_definition_id,bucket_start,bucket_end
+)
+UPDATE routing_minute_bucket_heads head
+SET current_revision_id=appended.id,
+    bucket_end=appended.bucket_end,
+    updated_at=now()
+FROM appended
+WHERE head.source_definition_id=appended.source_definition_id
+  AND head.bucket_start=appended.bucket_start;
 
 CREATE OR REPLACE FUNCTION reject_node6_2_immutable_update() RETURNS trigger LANGUAGE plpgsql AS $$
 BEGIN RAISE EXCEPTION 'NODE-6.2 provenance/recovery revisions are immutable; append a new revision instead'; END; $$;
