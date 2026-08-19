@@ -93,6 +93,10 @@ jobs:
         run: docker compose -f docker-compose.yml -f docker-compose.node3.yml config >/dev/null
       - name: Validate NODE-6.2 recovery compose service
         run: docker compose config >/dev/null
+      - name: Validate NODE-7 discovery compose service
+        run: |
+          docker compose config --services | grep -qx discovery
+          docker compose config | grep -q 'dist/discovery/worker/main.js'
       - name: Build
         run: npm run build
       - name: Build container including pinned MRT decoder
