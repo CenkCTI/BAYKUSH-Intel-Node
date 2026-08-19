@@ -38,6 +38,8 @@ jobs:
         run: npm run typecheck
       - name: Unit tests
         run: npm test
+      - name: NODE-6.2 populated upgrade-path acceptance
+        run: npm run test:node6-2-upgrade
       - name: Apply migrations
         run: npm run db:migrate
       - name: Verify migration immutability and idempotency
