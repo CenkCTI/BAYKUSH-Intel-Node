@@ -25,6 +25,7 @@
     "test:node5a": "tsx scripts/test-node5a.ts",
     "test:node6-2": "vitest run tests/node6-2-recovery.test.ts",
     "test:node6-2-db": "tsx scripts/test-node6-2.ts",
+    "test:node6-2-upgrade": "node scripts/test-node6-2-upgrade-path.mjs",
     "test:node6-2-cross-parser": "node scripts/node6-2-cross-parser-acceptance.mjs",
     "test:node6-2-real-db": "tsx scripts/node6-2-real-db-e2e-acceptance.ts",
     "test:node6-2-soak-evidence": "tsx scripts/node6-2-live-recovery-soak.ts",
