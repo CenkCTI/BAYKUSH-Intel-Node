@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { processNode7ActivityBatch } from "../activity.js";
 import { processNode7ConvergenceBatch } from "../convergence.js";
+import { processNode7DiscoveryBatch } from "../discovery.js";
 
 const workerId = `node7-discovery-${process.pid}-${randomUUID()}`;
 const idleDelayMs = 2_000;
@@ -12,18 +13,12 @@ async function sleep(ms: number): Promise<void> {
 
 async function main(): Promise<void> {
   while (true) {
-    const activity = await processNode7ActivityBatch({
-      workerId,
-      queueLimit: 500,
-      processLimit: 100,
-    });
-    const convergence = await processNode7ConvergenceBatch({
-      workerId,
-      queueLimit: 500,
-      processLimit: 100,
-    });
+    const activity = await processNode7ActivityBatch({ workerId, queueLimit: 500, processLimit: 100 });
+    const convergence = await processNode7ConvergenceBatch({ workerId, queueLimit: 500, processLimit: 100 });
+    const discovery = await processNode7DiscoveryBatch({ workerId, queueLimit: 500, processLimit: 100 });
     const active = activity.queued > 0 || activity.processed > 0
-      || convergence.queued > 0 || convergence.processed > 0;
+      || convergence.queued > 0 || convergence.processed > 0
+      || discovery.queued > 0 || discovery.processed > 0;
     await sleep(active ? activeDelayMs : idleDelayMs);
   }
 }
