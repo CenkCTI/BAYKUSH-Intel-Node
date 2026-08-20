@@ -1,5 +1,7 @@
 # NODE-7 — Convergence, Lineage, Geography & Discovery
 
+**Status: COMPLETE — closed 2026-08-20.**
+
 ## Mission
 
 NODE-7 makes multi-source technical movement discoverable without converting correlation into attribution, attack verdicts, risk scores, or strategic conclusions.
@@ -59,7 +61,7 @@ No finding contains an actor, attacker-country claim, maliciousness verdict, sev
 
 The Node exposes bounded authenticated read contracts. CITEM remains a server-side consumer and presents discovery with semantic boundaries and traversable provenance.
 
-## Planned NODE-7 subphases
+## Completed NODE-7 subphases
 
 1. **7A Semantic Foundation** — entity capabilities, upstream-origin semantics, derivation policies, exact-identity and time/acquisition contracts.
 2. **7B Entity Activity Backbone** — deterministic hour/day activity buckets, members, inputs, durable projection jobs and receipts.
@@ -72,6 +74,8 @@ The Node exposes bounded authenticated read contracts. CITEM remains a server-si
 9. **7I CITEM Integration** — discovery summary, workbench, entity drill-down and geography presentation in a separate failure domain.
 10. **7J Resilience & Performance** — replay, lease recovery, statement bounds, 30-day query load and small-host operation.
 11. **7K Real Acceptance & Closure** — real multi-source convergence through Node to CITEM with machine-readable evidence.
+
+Closure evidence, implementation baselines, CI runs, manual acceptance and deferred non-blocking items are recorded in `docs/NODE_7_ACCEPTANCE.md`.
 
 ## Authority boundary
 
