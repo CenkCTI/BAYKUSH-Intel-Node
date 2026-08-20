@@ -13,7 +13,7 @@ describe("NODE-7 semantic contracts", () => {
       sourceClassCount: 1,
       timePrecision: "INSTANT",
       observationSpanSeconds: 120,
-      concurrentWindowSeconds: 21_600,
+      concurrentWindowSeconds: 3_600,
     });
 
     expect(result.findingTypes).toContain("SOURCE_SYSTEM_OVERLAP");
@@ -27,8 +27,8 @@ describe("NODE-7 semantic contracts", () => {
       upstreamOriginCount: 2,
       sourceClassCount: 2,
       timePrecision: "INSTANT",
-      observationSpanSeconds: 3_600,
-      concurrentWindowSeconds: 21_600,
+      observationSpanSeconds: 1_800,
+      concurrentWindowSeconds: 3_600,
     });
 
     expect(result.findingTypes).toEqual([
@@ -46,18 +46,21 @@ describe("NODE-7 semantic contracts", () => {
       sourceClassCount: 2,
       timePrecision: "DATE",
       observationSpanSeconds: 0,
-      concurrentWindowSeconds: 21_600,
+      concurrentWindowSeconds: 3_600,
     });
 
     expect(result.concurrentEligible).toBe(false);
     expect(result.findingTypes).not.toContain("CONCURRENT_MOVEMENT");
   });
 
-  it("separates current novelty from historical acquisition", () => {
+  it("allows only LIVE_INCREMENTAL to create current novelty", () => {
     expect(classifyNode7NoveltyBasis("LIVE_INCREMENTAL")).toBe("CURRENT");
-    expect(classifyNode7NoveltyBasis("RESYNC")).toBe("CURRENT");
-    expect(classifyNode7NoveltyBasis("HISTORICAL_BACKFILL")).toBe("HISTORICAL");
+    expect(classifyNode7NoveltyBasis("INITIAL_BOOTSTRAP")).toBe("HISTORICAL");
     expect(classifyNode7NoveltyBasis("RECOVERY")).toBe("HISTORICAL");
+    expect(classifyNode7NoveltyBasis("HISTORICAL_BACKFILL")).toBe("HISTORICAL");
+    expect(classifyNode7NoveltyBasis("RESYNC")).toBe("HISTORICAL");
+    expect(classifyNode7NoveltyBasis("REPAIR")).toBe("HISTORICAL");
+    expect(classifyNode7NoveltyBasis("SNAPSHOT_RECONSTRUCTION")).toBe("HISTORICAL");
   });
 
   it("uses exact type and canonical key as the subject identity", () => {

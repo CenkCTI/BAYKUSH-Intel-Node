@@ -78,17 +78,10 @@ export function classifyNode7Convergence(
   return { findingTypes, concurrentEligible };
 }
 
-const HISTORICAL_ONLY_BASES = new Set<Node7AcquisitionBasis>([
-  "INITIAL_BOOTSTRAP",
-  "RECOVERY",
-  "HISTORICAL_BACKFILL",
-  "SNAPSHOT_RECONSTRUCTION",
-]);
-
 export function classifyNode7NoveltyBasis(
   basis: Node7AcquisitionBasis,
 ): "CURRENT" | "HISTORICAL" {
-  return HISTORICAL_ONLY_BASES.has(basis) ? "HISTORICAL" : "CURRENT";
+  return basis === "LIVE_INCREMENTAL" ? "CURRENT" : "HISTORICAL";
 }
 
 export function exactCanonicalSubject(entityType: string, entityKey: string): string {

@@ -38,6 +38,8 @@ jobs:
         run: npm run typecheck
       - name: Unit tests
         run: npm test
+      - name: NODE-6.2 populated upgrade-path acceptance
+        run: npm run test:node6-2-upgrade
       - name: Apply migrations
         run: npm run db:migrate
       - name: Verify migration immutability and idempotency
@@ -87,10 +89,16 @@ jobs:
         run: npm run node6-2:final-audit
       - name: NODE-6.2 security boundary audit
         run: npm run node6-2:security-audit
+      - name: NODE-7 PostgreSQL discovery acceptance
+        run: npm run test:node7
       - name: Validate NODE-3 compose overlay
         run: docker compose -f docker-compose.yml -f docker-compose.node3.yml config >/dev/null
       - name: Validate NODE-6.2 recovery compose service
         run: docker compose config >/dev/null
+      - name: Validate NODE-7 discovery compose service
+        run: |
+          docker compose config --services | grep -qx discovery
+          docker compose config | grep -q 'dist/discovery/worker/main.js'
       - name: Build
         run: npm run build
       - name: Build container including pinned MRT decoder

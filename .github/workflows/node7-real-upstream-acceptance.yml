@@ -1,0 +1,35 @@
+name: NODE-7 real upstream acceptance
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: node7-real-upstream-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  real-upstream-overlap:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Install dependencies
+        run: npm install
+      - name: Fetch official CISA KEV and NVD data and prove exact canonical overlap
+        env:
+          NODE7_REAL_ACCEPTANCE_OUTPUT: artifacts/node7-real-upstream-overlap.json
+        run: npm run test:node7-real
+      - name: Upload machine-readable acceptance evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: node7-real-upstream-overlap
+          path: artifacts/node7-real-upstream-overlap.json
+          if-no-files-found: error
+          retention-days: 14

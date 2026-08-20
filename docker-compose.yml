@@ -108,6 +108,20 @@ services:
         condition: service_completed_successfully
     restart: unless-stopped
 
+  discovery:
+    build: .
+    command: ["node", "dist/discovery/worker/main.js"]
+    environment:
+      <<: *node-env
+      NODE_INSTANCE_ID: discovery-1
+      IPINFO_LITE_TOKEN: ${IPINFO_LITE_TOKEN:-}
+      NODE7_GEO_HTTP_TIMEOUT_MS: ${NODE7_GEO_HTTP_TIMEOUT_MS:-8000}
+      NODE7_GEO_REFRESH_HOURS: ${NODE7_GEO_REFRESH_HOURS:-24}
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    restart: unless-stopped
+
   stream-worker:
     build: .
     command: ["node", "dist/stream/main.js"]
