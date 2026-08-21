@@ -6,7 +6,7 @@ ENV_FILE=${ENV_FILE:-/etc/baykush/runtime.env}
 SMOKE_SCRIPT=${SMOKE_SCRIPT:-/opt/baykush-node/scripts/smoke-test.sh}
 PREFLIGHT_SCRIPT=${PREFLIGHT_SCRIPT:-/opt/baykush-node/scripts/preflight.sh}
 
-"$PREFLIGHT_SCRIPT"
+bash "$PREFLIGHT_SCRIPT"
 
 printf 'deploy: pulling exact release images\n'
 docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" pull
@@ -34,5 +34,5 @@ for attempt in $(seq 1 30); do
   sleep 2
 done
 
-"$SMOKE_SCRIPT"
+bash "$SMOKE_SCRIPT"
 printf 'deploy: PASS\n'
