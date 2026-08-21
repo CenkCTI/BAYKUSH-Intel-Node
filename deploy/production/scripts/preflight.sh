@@ -31,25 +31,28 @@ owner=$(stat -c '%U:%G' "$ENV_FILE")
 image=$(grep -E '^BAYKUSH_NODE_IMAGE=' "$ENV_FILE" | tail -n1 | cut -d= -f2- || true)
 hostname=$(grep -E '^NODE_HOSTNAME=' "$ENV_FILE" | tail -n1 | cut -d= -f2- || true)
 secret_dir=$(grep -E '^BAYKUSH_SECRET_DIR=' "$ENV_FILE" | tail -n1 | cut -d= -f2- || true)
+secret_gid=$(grep -E '^BAYKUSH_SECRET_GID=' "$ENV_FILE" | tail -n1 | cut -d= -f2- || true)
 [[ -n "$image" && "$image" != *REPLACE_ME* ]] || fail "BAYKUSH_NODE_IMAGE is not configured"
 [[ -n "$hostname" && "$hostname" != *.invalid ]] || fail "NODE_HOSTNAME is not configured"
 [[ -n "$secret_dir" && -d "$secret_dir" ]] || fail "BAYKUSH_SECRET_DIR is missing or is not a directory"
+[[ "$secret_gid" =~ ^[0-9]+$ ]] || fail "BAYKUSH_SECRET_GID must be a numeric supplemental group id"
 
-secret_owner=$(stat -c '%U:%G' "$secret_dir")
+secret_uid=$(stat -c '%u' "$secret_dir")
+secret_actual_gid=$(stat -c '%g' "$secret_dir")
 secret_mode=$(stat -c '%a' "$secret_dir")
-[[ "$secret_owner" == "root:root" ]] || fail "$secret_dir must be owned by root:root; got $secret_owner"
-[[ "$secret_mode" == "700" ]] || fail "$secret_dir must be mode 0700; got $secret_mode"
+[[ "$secret_uid" == "0" ]] || fail "$secret_dir must be owned by root"
+[[ "$secret_actual_gid" == "$secret_gid" ]] || fail "$secret_dir group id must be $secret_gid; got $secret_actual_gid"
+[[ "$secret_mode" == "750" ]] || fail "$secret_dir must be mode 0750; got $secret_mode"
 
 for secret_name in postgres_password database_url api_credentials.json smoke_api_token; do
   secret_path="$secret_dir/$secret_name"
   [[ -f "$secret_path" ]] || fail "required secret file missing: $secret_name"
-  file_owner=$(stat -c '%U:%G' "$secret_path")
+  file_uid=$(stat -c '%u' "$secret_path")
+  file_gid=$(stat -c '%g' "$secret_path")
   file_mode=$(stat -c '%a' "$secret_path")
-  [[ "$file_owner" == "root:root" ]] || fail "$secret_name must be owned by root:root"
-  case "$file_mode" in
-    400|600) ;;
-    *) fail "$secret_name must be mode 0400 or 0600; got $file_mode" ;;
-  esac
+  [[ "$file_uid" == "0" ]] || fail "$secret_name must be owned by root"
+  [[ "$file_gid" == "$secret_gid" ]] || fail "$secret_name group id must be $secret_gid"
+  [[ "$file_mode" == "440" ]] || fail "$secret_name must be mode 0440; got $file_mode"
 done
 
 case "$image" in
