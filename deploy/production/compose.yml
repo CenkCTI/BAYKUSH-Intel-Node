@@ -6,6 +6,8 @@ x-node-image: &node-image
   restart: unless-stopped
   networks:
     - backend
+  volumes:
+    - ${BAYKUSH_SECRET_DIR:?BAYKUSH_SECRET_DIR is required}:/run/secrets/baykush:ro
   logging: &default-logging
     driver: json-file
     options:
@@ -13,7 +15,7 @@ x-node-image: &node-image
       max-file: "5"
 
 x-node-env: &node-env
-  DATABASE_URL: ${DATABASE_URL:?DATABASE_URL is required}
+  DATABASE_URL_FILE: /run/secrets/baykush/database_url
   ENABLE_TEST_SYNTHETIC: "false"
   WORKER_RETRY_BASE_SECONDS: ${WORKER_RETRY_BASE_SECONDS:-5}
   WORKER_RETRY_MAX_SECONDS: ${WORKER_RETRY_MAX_SECONDS:-300}
@@ -49,9 +51,10 @@ services:
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-baykush}
       POSTGRES_USER: ${POSTGRES_USER:?POSTGRES_USER is required}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+      POSTGRES_PASSWORD_FILE: /run/secrets/baykush/postgres_password
     volumes:
       - baykush_pgdata:/var/lib/postgresql/data
+      - ${BAYKUSH_SECRET_DIR}:/run/secrets/baykush:ro
     networks:
       - backend
     healthcheck:
@@ -64,7 +67,7 @@ services:
   migrate:
     <<: *node-image
     restart: "no"
-    command: ["node", "scripts/migrate.mjs"]
+    command: ["/bin/sh", "scripts/runtime-with-secrets.sh", "node", "scripts/migrate.mjs"]
     environment:
       <<: *node-env
     depends_on:
@@ -73,12 +76,15 @@ services:
 
   api:
     <<: *node-image
-    command: ["node", "dist/api/main.js"]
+    command: ["/bin/sh", "scripts/runtime-with-secrets.sh", "node", "dist/api/main.js"]
     environment:
       <<: *node-env
       PORT: "8080"
       NODE_INSTANCE_ID: api-1
-      BAYKUSH_NODE_API_TOKEN: ${BAYKUSH_NODE_API_TOKEN:?BAYKUSH_NODE_API_TOKEN is required}
+      BAYKUSH_NODE_API_CREDENTIALS_FILE: /run/secrets/baykush/api_credentials.json
+      API_RATE_LIMIT_WINDOW_MS: ${API_RATE_LIMIT_WINDOW_MS:-60000}
+      API_RATE_LIMIT_STANDARD: ${API_RATE_LIMIT_STANDARD:-120}
+      API_RATE_LIMIT_EXPENSIVE: ${API_RATE_LIMIT_EXPENSIVE:-30}
     expose:
       - "8080"
     networks:
@@ -96,7 +102,7 @@ services:
 
   scheduler:
     <<: *node-image
-    command: ["node", "dist/scheduler/main.js"]
+    command: ["/bin/sh", "scripts/runtime-with-secrets.sh", "node", "dist/scheduler/main.js"]
     environment:
       <<: *node-env
       NODE_INSTANCE_ID: scheduler-1
@@ -106,31 +112,31 @@ services:
 
   worker:
     <<: *node-image
-    command: ["node", "dist/worker/node5-main.js"]
+    command: ["/bin/sh", "scripts/runtime-with-secrets.sh", "node", "dist/worker/node5-main.js"]
     environment:
       <<: *node-env
       NODE_INSTANCE_ID: worker-1
-      NVD_API_KEY: ${NVD_API_KEY:-}
-      THREATFOX_AUTH_KEY: ${THREATFOX_AUTH_KEY:-}
-      MALWAREBAZAAR_AUTH_KEY: ${MALWAREBAZAAR_AUTH_KEY:-}
+      NVD_API_KEY_FILE: ${NVD_API_KEY_FILE:-}
+      THREATFOX_AUTH_KEY_FILE: ${THREATFOX_AUTH_KEY_FILE:-}
+      MALWAREBAZAAR_AUTH_KEY_FILE: ${MALWAREBAZAAR_AUTH_KEY_FILE:-}
     depends_on:
       migrate:
         condition: service_completed_successfully
 
   backfill:
     <<: *node-image
-    command: ["node", "dist/backfill/main.js"]
+    command: ["/bin/sh", "scripts/runtime-with-secrets.sh", "node", "dist/backfill/main.js"]
     environment:
       <<: *node-env
       NODE_INSTANCE_ID: backfill-1
-      NVD_API_KEY: ${NVD_API_KEY:-}
+      NVD_API_KEY_FILE: ${NVD_API_KEY_FILE:-}
     depends_on:
       migrate:
         condition: service_completed_successfully
 
   normalizer:
     <<: *node-image
-    command: ["node", "dist/normalizer/main.js"]
+    command: ["/bin/sh", "scripts/runtime-with-secrets.sh", "node", "dist/normalizer/main.js"]
     environment:
       <<: *node-env
       NODE_INSTANCE_ID: normalizer-1
@@ -140,7 +146,7 @@ services:
 
   measurement:
     <<: *node-image
-    command: ["node", "dist/measurement/main.js"]
+    command: ["/bin/sh", "scripts/runtime-with-secrets.sh", "node", "dist/measurement/main.js"]
     environment:
       <<: *node-env
       NODE_INSTANCE_ID: measurement-1
@@ -150,11 +156,11 @@ services:
 
   discovery:
     <<: *node-image
-    command: ["node", "dist/discovery/worker/main.js"]
+    command: ["/bin/sh", "scripts/runtime-with-secrets.sh", "node", "dist/discovery/worker/main.js"]
     environment:
       <<: *node-env
       NODE_INSTANCE_ID: discovery-1
-      IPINFO_LITE_TOKEN: ${IPINFO_LITE_TOKEN:-}
+      IPINFO_LITE_TOKEN_FILE: ${IPINFO_LITE_TOKEN_FILE:-}
       NODE7_GEO_HTTP_TIMEOUT_MS: ${NODE7_GEO_HTTP_TIMEOUT_MS:-8000}
       NODE7_GEO_REFRESH_HOURS: ${NODE7_GEO_REFRESH_HOURS:-24}
     depends_on:
@@ -163,7 +169,7 @@ services:
 
   stream-worker:
     <<: *node-image
-    command: ["node", "dist/stream/main.js"]
+    command: ["/bin/sh", "scripts/runtime-with-secrets.sh", "node", "dist/stream/main.js"]
     environment:
       <<: *node-env
       NODE_INSTANCE_ID: stream-worker-1
@@ -178,7 +184,7 @@ services:
 
   recovery-worker:
     <<: *node-image
-    command: ["node", "dist/recovery/main.js"]
+    command: ["/bin/sh", "scripts/runtime-with-secrets.sh", "node", "dist/recovery/main.js"]
     environment:
       <<: *node-env
       NODE_INSTANCE_ID: recovery-worker-1
@@ -195,6 +201,7 @@ services:
       RECOVERY_DECODER_MAX_RECORDS: ${RECOVERY_DECODER_MAX_RECORDS:-10000000}
       RECOVERY_PAUSE_ON_STREAM_UNHEALTHY: ${RECOVERY_PAUSE_ON_STREAM_UNHEALTHY:-true}
     volumes:
+      - ${BAYKUSH_SECRET_DIR}:/run/secrets/baykush:ro
       - baykush_recovery:/var/lib/baykush/recovery
     read_only: true
     tmpfs:
