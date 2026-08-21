@@ -99,20 +99,23 @@ jobs:
         run: |
           docker compose config --services | grep -qx discovery
           docker compose config | grep -q 'dist/discovery/worker/main.js'
-      - name: NODE-8A production deployment acceptance
+      - name: NODE-8 production deployment and secret-boundary acceptance
         env:
           BAYKUSH_NODE_IMAGE: ghcr.io/cenkcti/baykush-intel-node@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
           NODE_HOSTNAME: node.example.com
           ACME_EMAIL: ops@example.com
+          BAYKUSH_SECRET_DIR: /tmp/baykush-ci-secrets
           POSTGRES_DB: baykush
           POSTGRES_USER: baykush
-          POSTGRES_PASSWORD: ci-only-password
-          DATABASE_URL: postgres://baykush:ci-only-password@postgres:5432/baykush
-          BAYKUSH_NODE_API_TOKEN: 0123456789abcdef0123456789abcdef
+          NVD_API_KEY_FILE: /run/secrets/baykush/nvd_api_key
+          API_RATE_LIMIT_WINDOW_MS: "60000"
+          API_RATE_LIMIT_STANDARD: "120"
+          API_RATE_LIMIT_EXPENSIVE: "30"
         run: |
           bash -n deploy/production/scripts/preflight.sh
           bash -n deploy/production/scripts/deploy.sh
           bash -n deploy/production/scripts/smoke-test.sh
+          sh -n scripts/runtime-with-secrets.sh
           docker compose -f deploy/production/compose.yml config --format json > /tmp/node8-compose.json
           node - <<'NODE'
           const fs = require('node:fs');
@@ -134,7 +137,23 @@ jobs:
           }
           if ((config.services.api.networks ?? {}).edge === undefined) throw new Error('API must join edge network');
           if ((config.services.postgres.networks ?? {}).edge !== undefined) throw new Error('PostgreSQL must not join edge network');
+
+          const apiEnv = config.services.api.environment ?? {};
+          if (apiEnv.DATABASE_URL !== undefined) throw new Error('API must not receive raw DATABASE_URL in production Compose');
+          if (apiEnv.BAYKUSH_NODE_API_TOKEN !== undefined) throw new Error('API must not receive raw bearer token in production Compose');
+          if (apiEnv.DATABASE_URL_FILE !== '/run/secrets/baykush/database_url') throw new Error('API database secret-file contract missing');
+          if (apiEnv.BAYKUSH_NODE_API_CREDENTIALS_FILE !== '/run/secrets/baykush/api_credentials.json') throw new Error('API credential registry file contract missing');
+          const pgEnv = config.services.postgres.environment ?? {};
+          if (pgEnv.POSTGRES_PASSWORD !== undefined) throw new Error('PostgreSQL raw password must not be present');
+          if (pgEnv.POSTGRES_PASSWORD_FILE !== '/run/secrets/baykush/postgres_password') throw new Error('PostgreSQL password file missing');
+          const workerEnv = config.services.worker.environment ?? {};
+          if (workerEnv.NVD_API_KEY !== undefined || workerEnv.THREATFOX_AUTH_KEY !== undefined || workerEnv.MALWAREBAZAAR_AUTH_KEY !== undefined) {
+            throw new Error('provider credentials must be file-backed in production Compose');
+          }
           NODE
+          mkdir -p /tmp/node8-wrapper-test
+          printf '%s\n' 'postgres://ci:ci@postgres:5432/ci' > /tmp/node8-wrapper-test/database_url
+          DATABASE_URL_FILE=/tmp/node8-wrapper-test/database_url sh scripts/runtime-with-secrets.sh sh -c 'test "$DATABASE_URL" = "postgres://ci:ci@postgres:5432/ci"'
           docker run --rm \
             -e NODE_HOSTNAME=node.example.com \
             -e ACME_EMAIL=ops@example.com \
