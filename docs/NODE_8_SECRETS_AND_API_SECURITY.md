@@ -4,25 +4,29 @@
 
 Production credentials are host-private files. They are not committed to Git, embedded in images, returned by APIs, written to canonical/raw intelligence state or exposed to browser code.
 
-The initial host layout is:
+The runtime image already runs as the non-root `node` user, so production secrets use a dedicated **non-interactive numeric supplemental group** rather than making root-only files unreadable inside the container. Do not add human login users to this group.
+
+Example host layout with `BAYKUSH_SECRET_GID=2000`:
 
 ```text
 /etc/baykush/
-  runtime.env                 # non-secret paths and limits; root:root 0600
-  secrets/                    # root:root 0700
-    postgres_password         # 0400
-    database_url              # 0400; replaced by role-specific URLs in NODE-8C
-    api_credentials.json      # 0400
-    smoke_api_token           # 0400; host-only copy of active scoped credential
-    nvd_api_key               # optional 0400
-    threatfox_auth_key        # optional 0400
-    malwarebazaar_auth_key    # optional 0400
-    ipinfo_lite_token         # optional 0400
+  runtime.env                 # root:root 0600; paths/limits only
+  secrets/                    # root:2000 0750
+    postgres_password         # root:2000 0440
+    database_url              # root:2000 0440; role-specific in NODE-8C
+    api_credentials.json      # root:2000 0440
+    smoke_api_token           # root:2000 0440; host-only active scoped credential
+    nvd_api_key               # optional root:2000 0440
+    threatfox_auth_key        # optional root:2000 0440
+    malwarebazaar_auth_key    # optional root:2000 0440
+    ipinfo_lite_token         # optional root:2000 0440
 ```
 
-The production Compose stack mounts the secret directory read-only at `/run/secrets/baykush`. Normal runtime environment variables contain only secret **paths**. A tiny PID-1 wrapper resolves provider/database files immediately before the Node process is executed so raw secret values do not appear in the Compose model or `docker inspect` configuration.
+The production Compose stack mounts the secret directory read-only at `/run/secrets/baykush` and adds only the configured supplemental GID to Node/PostgreSQL containers. Normal runtime environment variables contain only secret **paths**. A tiny PID-1 wrapper resolves provider/database files immediately before the Node process is executed so raw secret values do not appear in the Compose model or Docker container configuration.
 
 The API credential registry is read directly from its mounted file and never needs to be exported as a process environment value.
+
+The initial NODE-8B stack mounts the common secret directory read-only. NODE-8C narrows database credentials by service/role; later runtime hardening may further split provider-secret mounts where operationally useful.
 
 ## Development compatibility
 
