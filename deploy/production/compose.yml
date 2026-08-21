@@ -6,6 +6,8 @@ x-node-image: &node-image
   restart: unless-stopped
   networks:
     - backend
+  group_add:
+    - "${BAYKUSH_SECRET_GID:-2000}"
   volumes:
     - ${BAYKUSH_SECRET_DIR:?BAYKUSH_SECRET_DIR is required}:/run/secrets/baykush:ro
   logging: &default-logging
@@ -48,6 +50,8 @@ services:
   postgres:
     image: postgres:16-bookworm
     restart: unless-stopped
+    group_add:
+      - "${BAYKUSH_SECRET_GID:-2000}"
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-baykush}
       POSTGRES_USER: ${POSTGRES_USER:?POSTGRES_USER is required}
