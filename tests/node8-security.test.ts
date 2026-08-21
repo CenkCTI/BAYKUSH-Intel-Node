@@ -29,7 +29,9 @@ afterEach(async () => {
 });
 
 async function startServer(credentials: readonly ApiCredential[], rateLimiter?: InMemoryApiRateLimiter) {
-  const server = createApiServer({ apiCredentials: credentials, rateLimiter });
+  const server = rateLimiter
+    ? createApiServer({ apiCredentials: credentials, rateLimiter })
+    : createApiServer({ apiCredentials: credentials });
   servers.push(server);
   await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
   const { port } = server.address() as AddressInfo;
@@ -37,8 +39,9 @@ async function startServer(credentials: readonly ApiCredential[], rateLimiter?: 
 }
 
 async function get(base: string, route: string, token?: string) {
-  const headers = token ? { authorization: `Bearer ${token}` } : undefined;
-  return fetch(`${base}${route}`, { headers });
+  return token
+    ? fetch(`${base}${route}`, { headers: { authorization: `Bearer ${token}` } })
+    : fetch(`${base}${route}`);
 }
 
 describe("NODE-8 secret and service-auth boundary", () => {
