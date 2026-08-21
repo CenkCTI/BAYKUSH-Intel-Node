@@ -38,16 +38,21 @@ Copy the contents of this directory to `/opt/baykush-node`:
   scripts/
 ```
 
-Copy `env.example` to `/etc/baykush/runtime.env`, populate only paths/non-secret configuration, then enforce:
-
-```text
-owner: root:root
-mode: 0600
-```
+Copy `env.example` to `/etc/baykush/runtime.env`, populate only paths/non-secret configuration, then enforce `root:root` mode `0600`.
 
 ## Provision host-private secrets
 
-Create `/etc/baykush/secrets` as `root:root` mode `0700`. Required files are:
+Create a dedicated non-interactive host group with the numeric GID configured by `BAYKUSH_SECRET_GID` (default example `2000`). Do not add human login users to that group.
+
+Create `/etc/baykush/secrets` as:
+
+```text
+owner uid: 0 (root)
+group gid: BAYKUSH_SECRET_GID
+mode: 0750
+```
+
+Required files are:
 
 ```text
 postgres_password
@@ -56,7 +61,9 @@ api_credentials.json
 smoke_api_token
 ```
 
-Each file must be `root:root` and mode `0400` or `0600`. Optional provider files may be added only when configured in `runtime.env`:
+Each secret file must be owned by uid `0`, group `BAYKUSH_SECRET_GID`, mode `0440`. This allows the existing non-root Node runtime to read only the read-only mounted secrets through its supplemental group without running application processes as root.
+
+Optional provider files may be added only when configured in `runtime.env`:
 
 ```text
 nvd_api_key
@@ -65,7 +72,7 @@ malwarebazaar_auth_key
 ipinfo_lite_token
 ```
 
-Use `api-credentials.example.json` only as a schema example. Generate random real tokens out of band and never commit the populated registry. `smoke_api_token` is a host-only copy of one active credential carrying both `techint:read` and `sources:read`; it is not mounted into the application containers.
+Use `api-credentials.example.json` only as a schema example. Generate random real tokens out of band and never commit the populated registry. `smoke_api_token` is a host-side copy of one active credential carrying both `techint:read` and `sources:read`.
 
 The `database_url` file is the transitional shared database URL. NODE-8C replaces it with role-specific connection files without returning raw credentials to `runtime.env`.
 
