@@ -231,6 +231,8 @@ Global View contains an `Internet Infrastructure` lane whose measurements remain
 
 ## NODE-7 — Convergence, Lineage, Geography & Discovery
 
+**Status: COMPLETE — closed 2026-08-20.**
+
 Goal: make multi-source movement discoverable without automating unsupported conclusions.
 
 Scope:
@@ -259,9 +261,13 @@ Exit condition:
 
 An analyst can see that multiple distinct technical sources moved around a common subject and drill to the evidence without the Node declaring attribution or strategic meaning.
 
+Closure evidence and immutable release baselines are recorded in `docs/NODE_7_ACCEPTANCE.md`.
+
 ---
 
 ## NODE-8 — Operational Hardening
+
+**Status: NEXT.**
 
 Goal: operate the Node continuously and safely on small infrastructure, starting with Oracle but remaining provider-independent.
 
