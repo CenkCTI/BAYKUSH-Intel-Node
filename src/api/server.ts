@@ -2,9 +2,17 @@ import { createServer, type IncomingMessage, type ServerResponse } from "node:ht
 import { handleComparisonApi } from "../measurement/comparison-api.js";
 import { handleMeasurementApi } from "../measurement/api.js";
 import { handleMeasurementProvenanceApi } from "../measurement/provenance-api.js";
-import { authenticate, configuredApiToken, isProtectedPath } from "./auth.js";
+import {
+  authenticatePrincipal,
+  configuredApiCredentials,
+  legacyApiCredentials,
+  principalHasScope,
+  requiredScopeForPath,
+  type ApiCredential,
+} from "./auth.js";
 import { requestId, sendEnvelope, sendError } from "./http.js";
 import { handleNode7ReadApi } from "./node7-read-api.js";
+import { InMemoryApiRateLimiter } from "./rate-limit.js";
 import { handleReadApi } from "./read-api.js";
 
 async function health(response: ServerResponse, id: string): Promise<void> {
@@ -37,18 +45,60 @@ function isControlledNode7RequestError(error: unknown): error is Error {
   ].includes(error.message);
 }
 
-export function createApiServer(options: { apiToken?: string | null } = {}) {
-  const apiToken = options.apiToken === undefined ? configuredApiToken() : configuredApiToken(options.apiToken ?? undefined);
+export interface ApiServerOptions {
+  apiToken?: string | null;
+  apiCredentials?: readonly ApiCredential[];
+  rateLimiter?: InMemoryApiRateLimiter;
+}
+
+function credentialsForServer(options: ApiServerOptions): readonly ApiCredential[] {
+  if (options.apiCredentials !== undefined) return options.apiCredentials;
+  if (options.apiToken !== undefined) return legacyApiCredentials(options.apiToken);
+  return configuredApiCredentials();
+}
+
+export function createApiServer(options: ApiServerOptions = {}) {
+  const credentials = credentialsForServer(options);
+  const rateLimiter = options.rateLimiter ?? new InMemoryApiRateLimiter();
+
   return createServer((request: IncomingMessage, response: ServerResponse) => {
     const url = new URL(request.url ?? "/", "http://localhost");
     const id = requestId();
+
     if (request.method === "GET" && url.pathname === "/v1/health") {
       void health(response, id);
       return;
     }
-    if (url.pathname === "/v1/health") { sendError(response, 405, "METHOD_NOT_ALLOWED", "Method not allowed", id); return; }
-    if (isProtectedPath(url.pathname) && !authenticate(request, apiToken)) { sendError(response, 401, "UNAUTHORIZED", "Valid service credential required", id); return; }
-    if (isProtectedPath(url.pathname) && request.method !== "GET") { sendError(response, 405, "METHOD_NOT_ALLOWED", "Method not allowed", id); return; }
+    if (url.pathname === "/v1/health") {
+      sendError(response, 405, "METHOD_NOT_ALLOWED", "Method not allowed", id);
+      return;
+    }
+
+    const requiredScope = requiredScopeForPath(url.pathname);
+    if (requiredScope !== null) {
+      const principal = authenticatePrincipal(request, credentials);
+      if (!principal) {
+        sendError(response, 401, "UNAUTHORIZED", "Valid service credential required", id);
+        return;
+      }
+      if (!principalHasScope(principal, requiredScope)) {
+        sendError(response, 403, "FORBIDDEN", "Service credential is not authorized for this endpoint", id);
+        return;
+      }
+      if (request.method !== "GET") {
+        sendError(response, 405, "METHOD_NOT_ALLOWED", "Method not allowed", id);
+        return;
+      }
+
+      const decision = rateLimiter.consume(principal.id, url.pathname);
+      response.setHeader("x-ratelimit-limit", String(decision.limit));
+      response.setHeader("x-ratelimit-remaining", String(decision.remaining));
+      if (!decision.allowed) {
+        response.setHeader("retry-after", String(decision.retryAfterSeconds));
+        sendError(response, 429, "RATE_LIMITED", "Service credential rate limit exceeded", id);
+        return;
+      }
+    }
 
     void routeRequest(request, response, url, id).catch((error: unknown) => {
       if (response.writableEnded) return;
