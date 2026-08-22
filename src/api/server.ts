@@ -10,7 +10,7 @@ import {
   requiredScopeForPath,
   type ApiCredential,
 } from "./auth.js";
-import { requestId, sendEnvelope, sendError } from "./http.js";
+import { applyApiSecurityHeaders, requestId, sendEnvelope, sendError } from "./http.js";
 import { handleNode7ReadApi } from "./node7-read-api.js";
 import { InMemoryApiRateLimiter } from "./rate-limit.js";
 import { handleReadApi } from "./read-api.js";
@@ -62,6 +62,13 @@ export function createApiServer(options: ApiServerOptions = {}) {
   const rateLimiter = options.rateLimiter ?? new InMemoryApiRateLimiter();
 
   return createServer((request: IncomingMessage, response: ServerResponse) => {
+    // Apply the Node API security boundary before any route-specific handler runs.
+    // Some legacy measurement handlers emit responses through their own sendJson
+    // helpers, so enforcing headers here guarantees consistent hardening across
+    // successful, error, health and legacy response paths without relying on each
+    // downstream handler to remember the policy independently.
+    applyApiSecurityHeaders(response);
+
     const url = new URL(request.url ?? "/", "http://localhost");
     const id = requestId();
 
