@@ -1,0 +1,130 @@
+{
+  "schemaVersion": "NODE8_FAULT_MATRIX_V1",
+  "semantics": {
+    "unknownIsNotZero": true,
+    "noCoverageIsNotNoActivity": true,
+    "failureMustNotAdvanceSuccessfulCheckpoint": true,
+    "recoveryMustPreserveProvenance": true
+  },
+  "scenarios": [
+    {
+      "id": "VM_RESTART",
+      "executionMode": "MANUAL_REAL_HOST",
+      "destructive": true,
+      "expected": ["systemd resumes stack", "durable database survives", "collection resumes from checkpoints", "no fabricated coverage"]
+    },
+    {
+      "id": "DOCKER_DAEMON_RESTART",
+      "executionMode": "MANUAL_REAL_HOST",
+      "destructive": true,
+      "expected": ["containers recover", "database volume persists", "workers resume without duplicate canonical truth"]
+    },
+    {
+      "id": "POSTGRES_RESTART",
+      "executionMode": "SAFE_SERVICE_RESTART",
+      "destructive": false,
+      "service": "postgres",
+      "expected": ["runtime reconnects", "API health returns", "no fabricated zero during dependency outage"]
+    },
+    {
+      "id": "WORKER_CRASH",
+      "executionMode": "SAFE_SERVICE_RESTART",
+      "destructive": false,
+      "service": "worker",
+      "expected": ["worker restarts", "stale lease is reclaimable", "checkpoint integrity preserved"]
+    },
+    {
+      "id": "DISCOVERY_CRASH",
+      "executionMode": "SAFE_SERVICE_RESTART",
+      "destructive": false,
+      "service": "discovery",
+      "expected": ["discovery restarts", "projection resumes deterministically", "canonical truth unchanged"]
+    },
+    {
+      "id": "STREAM_WORKER_CRASH",
+      "executionMode": "SAFE_SERVICE_RESTART",
+      "destructive": false,
+      "service": "stream-worker",
+      "expected": ["stream worker restarts", "coverage gap remains explicit", "routing change is not reinterpreted as attack"]
+    },
+    {
+      "id": "CADDY_RESTART",
+      "executionMode": "SAFE_SERVICE_RESTART",
+      "destructive": false,
+      "service": "caddy",
+      "expected": ["ingress recovers", "backend runtime remains private", "short ingress interruption does not alter intelligence state"]
+    },
+    {
+      "id": "INTERNET_OUTAGE",
+      "executionMode": "MANUAL_REAL_HOST",
+      "destructive": true,
+      "expected": ["sources degrade explicitly", "unknown remains unknown", "successful checkpoints do not advance"]
+    },
+    {
+      "id": "DNS_FAILURE",
+      "executionMode": "AUTOMATED_UNIT",
+      "destructive": false,
+      "expected": ["controlled retryable transport failure", "no checkpoint advance", "no secret leakage"]
+    },
+    {
+      "id": "PROVIDER_429",
+      "executionMode": "AUTOMATED_UNIT",
+      "destructive": false,
+      "expected": ["Retry-After respected", "bounded retry", "source health degrades without fabricating data"]
+    },
+    {
+      "id": "PROVIDER_TIMEOUT",
+      "executionMode": "AUTOMATED_UNIT",
+      "destructive": false,
+      "expected": ["bounded timeout", "retryable failure", "checkpoint not advanced"]
+    },
+    {
+      "id": "PROVIDER_5XX",
+      "executionMode": "AUTOMATED_UNIT",
+      "destructive": false,
+      "expected": ["provider error classified", "bounded retry", "coverage is not inferred from missing records"]
+    },
+    {
+      "id": "PROVIDER_SCHEMA_CHANGE",
+      "executionMode": "AUTOMATED_UNIT",
+      "destructive": false,
+      "expected": ["schema mismatch is explicit", "unsafe payload is not normalized as trusted truth", "source health exposes failure"]
+    },
+    {
+      "id": "BAD_API_CREDENTIAL",
+      "executionMode": "AUTOMATED_HTTP",
+      "destructive": false,
+      "expected": ["401", "credential value absent from response", "no protected data returned"]
+    },
+    {
+      "id": "MISSING_API_SCOPE",
+      "executionMode": "AUTOMATED_UNIT",
+      "destructive": false,
+      "expected": ["403", "credential value absent from response", "scope boundary remains fail closed"]
+    },
+    {
+      "id": "RATE_LIMIT_EXCEEDED",
+      "executionMode": "AUTOMATED_UNIT",
+      "destructive": false,
+      "expected": ["429", "Retry-After present", "credential value absent from response"]
+    },
+    {
+      "id": "BACKUP_TARGET_OUTAGE",
+      "executionMode": "MANUAL_REAL_HOST",
+      "destructive": false,
+      "expected": ["normal Node runtime remains available", "backup failure is visible", "failed backup is not marked accepted"]
+    },
+    {
+      "id": "DISK_PRESSURE",
+      "executionMode": "MANUAL_REAL_HOST",
+      "destructive": true,
+      "expected": ["operations evidence reports warning/critical state", "expensive recovery work can be paused safely", "database is not allowed to fail silently"]
+    },
+    {
+      "id": "RESTORE_DRILL",
+      "executionMode": "MANUAL_REAL_HOST",
+      "destructive": false,
+      "expected": ["encrypted snapshot restores into isolated database", "checksums and migration ledger verify", "restore evidence is machine readable"]
+    }
+  ]
+}
