@@ -9,7 +9,7 @@ fail() {
   exit 1
 }
 
-for command in docker awk stat grep sort tr; do
+for command in docker awk stat grep sort tr openssl; do
   command -v "$command" >/dev/null 2>&1 || fail "missing required command: $command"
 done
 
@@ -44,15 +44,29 @@ secret_mode=$(stat -c '%a' "$secret_dir")
 [[ "$secret_actual_gid" == "$secret_gid" ]] || fail "$secret_dir group id must be $secret_gid; got $secret_actual_gid"
 [[ "$secret_mode" == "750" ]] || fail "$secret_dir must be mode 0750; got $secret_mode"
 
-for secret_name in postgres_password database_url api_credentials.json smoke_api_token; do
-  secret_path="$secret_dir/$secret_name"
+check_secret_file() {
+  local secret_name=$1
+  local secret_path="$secret_dir/$secret_name"
   [[ -f "$secret_path" ]] || fail "required secret file missing: $secret_name"
-  file_uid=$(stat -c '%u' "$secret_path")
-  file_gid=$(stat -c '%g' "$secret_path")
-  file_mode=$(stat -c '%a' "$secret_path")
-  [[ "$file_uid" == "0" ]] || fail "$secret_name must be owned by root"
-  [[ "$file_gid" == "$secret_gid" ]] || fail "$secret_name group id must be $secret_gid"
-  [[ "$file_mode" == "440" ]] || fail "$secret_name must be mode 0440; got $file_mode"
+  [[ $(stat -c '%u' "$secret_path") == 0 ]] || fail "$secret_name must be owned by root"
+  [[ $(stat -c '%g' "$secret_path") == "$secret_gid" ]] || fail "$secret_name group id must be $secret_gid"
+  [[ $(stat -c '%a' "$secret_path") == 440 ]] || fail "$secret_name must be mode 0440"
+}
+
+# First-boot secrets. Runtime role URL/password files are created after migration
+# by provision-db-roles.sh, so preflight must not require them before that gate.
+for secret_name in postgres_password db_migrator_url api_credentials.json smoke_api_token; do
+  check_secret_file "$secret_name"
+done
+
+# If role files already exist (normal redeploy), reject unsafe ownership/modes.
+for role in api ingest projection stream recovery; do
+  for suffix in password url; do
+    candidate="$secret_dir/db_${role}_${suffix}"
+    if [[ -e "$candidate" ]]; then
+      check_secret_file "db_${role}_${suffix}"
+    fi
+  done
 done
 
 case "$image" in
