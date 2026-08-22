@@ -58,9 +58,33 @@ const runtimeDbFiles = new Set(Object.entries(expectedDbFiles).filter(([name]) =
 assert(runtimeDbFiles.size === 5, "runtime database capability planes must remain distinct");
 assert(![...runtimeDbFiles].includes(expectedDbFiles.migrate), "runtime services must never receive migration database credential");
 
+const nodeServices = ["migrate", "api", "scheduler", "worker", "backfill", "normalizer", "measurement", "discovery", "stream-worker", "recovery-worker"];
+for (const name of nodeServices) {
+  const service = config.services[name];
+  assert(service.init === true, `${name} must use an init process`);
+  assert(service.read_only === true, `${name} root filesystem must be read-only`);
+  assert((service.security_opt ?? []).some((value) => String(value).startsWith("no-new-privileges")), `${name} must set no-new-privileges`);
+  assert((service.cap_drop ?? []).map(String).includes("ALL"), `${name} must drop all Linux capabilities`);
+  assert(Number(service.pids_limit) > 0, `${name} must have a PID limit`);
+  assert(service.mem_limit !== undefined, `${name} must have a memory limit`);
+  assert(Number(service.cpus) > 0, `${name} must have a CPU limit`);
+  assert((service.tmpfs ?? []).some((value) => String(value).startsWith("/tmp")), `${name} must use bounded tmpfs for /tmp`);
+}
+
+const caddy = config.services.caddy;
+assert(caddy.read_only === true, "Caddy root filesystem must be read-only");
+assert((caddy.cap_drop ?? []).map(String).includes("ALL"), "Caddy must drop default capabilities");
+assert((caddy.cap_add ?? []).map(String).includes("NET_BIND_SERVICE"), "Caddy may regain only NET_BIND_SERVICE for low ports");
+assert(Number(caddy.pids_limit) > 0 && caddy.mem_limit !== undefined && Number(caddy.cpus) > 0, "Caddy must be resource bounded");
+
+const postgres = config.services.postgres;
+assert(Number(postgres.pids_limit) > 0 && postgres.mem_limit !== undefined && Number(postgres.cpus) > 0, "PostgreSQL must be resource bounded");
+
 console.log(JSON.stringify({
-  schemaVersion: "NODE8_PRODUCTION_COMPOSE_ACCEPTANCE_V2",
+  schemaVersion: "NODE8_PRODUCTION_COMPOSE_ACCEPTANCE_V3",
   accepted: true,
   publicServices,
   roleSeparatedDatabaseCredentials: true,
+  hardenedNodeRuntime: true,
+  boundedInfrastructureServices: true,
 }, null, 2));
