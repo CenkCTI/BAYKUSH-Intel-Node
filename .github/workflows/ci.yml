@@ -47,6 +47,8 @@ jobs:
           npm run db:migrate
           npm run test:migration
           npm run test:node4-backfill
+      - name: NODE-8C database role acceptance
+        run: node scripts/test-node8c-db-roles.mjs
       - name: NODE-5A source admission acceptance
         run: npm run test:node5a
       - name: Runtime acceptance
@@ -115,42 +117,10 @@ jobs:
           bash -n deploy/production/scripts/preflight.sh
           bash -n deploy/production/scripts/deploy.sh
           bash -n deploy/production/scripts/smoke-test.sh
+          bash -n deploy/production/scripts/provision-db-roles.sh
           sh -n scripts/runtime-with-secrets.sh
           docker compose -f deploy/production/compose.yml config --format json > /tmp/node8-compose.json
-          node - <<'NODE'
-          const fs = require('node:fs');
-          const config = JSON.parse(fs.readFileSync('/tmp/node8-compose.json', 'utf8'));
-          const expected = ['caddy','postgres','migrate','api','scheduler','worker','backfill','normalizer','measurement','discovery','stream-worker','recovery-worker'];
-          for (const service of expected) {
-            if (!config.services?.[service]) throw new Error(`missing production service ${service}`);
-          }
-          if (!config.networks?.backend?.internal) throw new Error('backend network must be internal');
-          if (config.services.postgres.ports?.length) throw new Error('PostgreSQL must not publish a host port');
-          if (config.services.api.ports?.length) throw new Error('API must not publish a host port');
-          const published = (config.services.caddy.ports ?? []).map((p) => Number(p.published)).sort((a,b)=>a-b);
-          if (!published.includes(80) || !published.includes(443)) throw new Error(`Caddy must publish 80/443: ${published}`);
-          const publicServices = Object.entries(config.services)
-            .filter(([, svc]) => (svc.ports ?? []).length > 0)
-            .map(([name]) => name);
-          if (publicServices.length !== 1 || publicServices[0] !== 'caddy') {
-            throw new Error(`only Caddy may publish host ports: ${publicServices}`);
-          }
-          if ((config.services.api.networks ?? {}).edge === undefined) throw new Error('API must join edge network');
-          if ((config.services.postgres.networks ?? {}).edge !== undefined) throw new Error('PostgreSQL must not join edge network');
-
-          const apiEnv = config.services.api.environment ?? {};
-          if (apiEnv.DATABASE_URL !== undefined) throw new Error('API must not receive raw DATABASE_URL in production Compose');
-          if (apiEnv.BAYKUSH_NODE_API_TOKEN !== undefined) throw new Error('API must not receive raw bearer token in production Compose');
-          if (apiEnv.DATABASE_URL_FILE !== '/run/secrets/baykush/database_url') throw new Error('API database secret-file contract missing');
-          if (apiEnv.BAYKUSH_NODE_API_CREDENTIALS_FILE !== '/run/secrets/baykush/api_credentials.json') throw new Error('API credential registry file contract missing');
-          const pgEnv = config.services.postgres.environment ?? {};
-          if (pgEnv.POSTGRES_PASSWORD !== undefined) throw new Error('PostgreSQL raw password must not be present');
-          if (pgEnv.POSTGRES_PASSWORD_FILE !== '/run/secrets/baykush/postgres_password') throw new Error('PostgreSQL password file missing');
-          const workerEnv = config.services.worker.environment ?? {};
-          if (workerEnv.NVD_API_KEY !== undefined || workerEnv.THREATFOX_AUTH_KEY !== undefined || workerEnv.MALWAREBAZAAR_AUTH_KEY !== undefined) {
-            throw new Error('provider credentials must be file-backed in production Compose');
-          }
-          NODE
+          node scripts/node8-compose-acceptance.mjs /tmp/node8-compose.json
           mkdir -p /tmp/node8-wrapper-test
           printf '%s\n' 'postgres://ci:ci@postgres:5432/ci' > /tmp/node8-wrapper-test/database_url
           env -u DATABASE_URL DATABASE_URL_FILE=/tmp/node8-wrapper-test/database_url sh scripts/runtime-with-secrets.sh sh -c 'test "$DATABASE_URL" = "postgres://ci:ci@postgres:5432/ci"'
