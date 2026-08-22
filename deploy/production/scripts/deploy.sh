@@ -5,6 +5,7 @@ COMPOSE_FILE=${COMPOSE_FILE:-/opt/baykush-node/compose.yml}
 ENV_FILE=${ENV_FILE:-/etc/baykush/runtime.env}
 SMOKE_SCRIPT=${SMOKE_SCRIPT:-/opt/baykush-node/scripts/smoke-test.sh}
 PREFLIGHT_SCRIPT=${PREFLIGHT_SCRIPT:-/opt/baykush-node/scripts/preflight.sh}
+DB_ROLE_SCRIPT=${DB_ROLE_SCRIPT:-/opt/baykush-node/scripts/provision-db-roles.sh}
 
 bash "$PREFLIGHT_SCRIPT"
 
@@ -14,8 +15,11 @@ docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" pull
 printf 'deploy: starting PostgreSQL\n'
 docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" up -d postgres
 
-printf 'deploy: running one-shot migration gate\n'
+printf 'deploy: running one-shot migration gate with migration-only credential\n'
 docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" run --rm migrate
+
+printf 'deploy: provisioning/rotating least-privilege runtime database logins\n'
+bash "$DB_ROLE_SCRIPT"
 
 printf 'deploy: starting runtime services\n'
 docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" up -d --remove-orphans
