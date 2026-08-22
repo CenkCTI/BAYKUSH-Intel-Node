@@ -9,7 +9,7 @@ fail() {
   exit 1
 }
 
-for command in docker awk stat grep; do
+for command in docker awk stat grep sort tr; do
   command -v "$command" >/dev/null 2>&1 || fail "missing required command: $command"
 done
 
@@ -30,8 +30,30 @@ owner=$(stat -c '%U:%G' "$ENV_FILE")
 
 image=$(grep -E '^BAYKUSH_NODE_IMAGE=' "$ENV_FILE" | tail -n1 | cut -d= -f2- || true)
 hostname=$(grep -E '^NODE_HOSTNAME=' "$ENV_FILE" | tail -n1 | cut -d= -f2- || true)
+secret_dir=$(grep -E '^BAYKUSH_SECRET_DIR=' "$ENV_FILE" | tail -n1 | cut -d= -f2- || true)
+secret_gid=$(grep -E '^BAYKUSH_SECRET_GID=' "$ENV_FILE" | tail -n1 | cut -d= -f2- || true)
 [[ -n "$image" && "$image" != *REPLACE_ME* ]] || fail "BAYKUSH_NODE_IMAGE is not configured"
 [[ -n "$hostname" && "$hostname" != *.invalid ]] || fail "NODE_HOSTNAME is not configured"
+[[ -n "$secret_dir" && -d "$secret_dir" ]] || fail "BAYKUSH_SECRET_DIR is missing or is not a directory"
+[[ "$secret_gid" =~ ^[0-9]+$ ]] || fail "BAYKUSH_SECRET_GID must be a numeric supplemental group id"
+
+secret_uid=$(stat -c '%u' "$secret_dir")
+secret_actual_gid=$(stat -c '%g' "$secret_dir")
+secret_mode=$(stat -c '%a' "$secret_dir")
+[[ "$secret_uid" == "0" ]] || fail "$secret_dir must be owned by root"
+[[ "$secret_actual_gid" == "$secret_gid" ]] || fail "$secret_dir group id must be $secret_gid; got $secret_actual_gid"
+[[ "$secret_mode" == "750" ]] || fail "$secret_dir must be mode 0750; got $secret_mode"
+
+for secret_name in postgres_password database_url api_credentials.json smoke_api_token; do
+  secret_path="$secret_dir/$secret_name"
+  [[ -f "$secret_path" ]] || fail "required secret file missing: $secret_name"
+  file_uid=$(stat -c '%u' "$secret_path")
+  file_gid=$(stat -c '%g' "$secret_path")
+  file_mode=$(stat -c '%a' "$secret_path")
+  [[ "$file_uid" == "0" ]] || fail "$secret_name must be owned by root"
+  [[ "$file_gid" == "$secret_gid" ]] || fail "$secret_name group id must be $secret_gid"
+  [[ "$file_mode" == "440" ]] || fail "$secret_name must be mode 0440; got $file_mode"
+done
 
 case "$image" in
   *@sha256:*) ;;
