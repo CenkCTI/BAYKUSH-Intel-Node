@@ -1,0 +1,22 @@
+[Unit]
+Description=BAYKUSH Intelligence Node encrypted database backup
+Requires=docker.service
+After=docker.service baykush-node.service
+ConditionPathExists=/etc/baykush/runtime.env
+
+[Service]
+Type=oneshot
+User=root
+Group=root
+Environment=ENV_FILE=/etc/baykush/runtime.env
+Environment=COMPOSE_FILE=/opt/baykush-node/compose.yml
+Environment=BACKUP_ENV_FILE=/etc/baykush/backup.env
+ExecStart=/usr/bin/bash /opt/baykush-node/scripts/backup.sh
+Nice=10
+IOSchedulingClass=best-effort
+IOSchedulingPriority=7
+CPUWeight=20
+IOWeight=20
+PrivateTmp=true
+ProtectHome=true
+NoNewPrivileges=true
