@@ -1,6 +1,10 @@
+import { lookup } from "node:dns/promises";
+import { isIP } from "node:net";
 import { CollectionFailure } from "../runtime/failure.js";
+import { isForbiddenSourceHostname, isPublicInternetAddress } from "./public-address.js";
 
 export type SourceHttpMethod = "GET" | "POST";
+export type SourceHostResolver = (hostname: string) => Promise<readonly string[]>;
 
 export interface SourceHttpRequest {
   url: URL;
@@ -17,6 +21,8 @@ export interface SourceHttpRequest {
   redactValues?: readonly string[];
   signal?: AbortSignal;
   fetchImpl?: typeof fetch;
+  /** Test seam for deterministic DNS policy checks. Production uses node:dns when the real transport is used. */
+  resolveHost?: SourceHostResolver;
 }
 
 export interface SourceHttpResponse {
@@ -41,6 +47,11 @@ export function parseRetryAfterSeconds(value: string | null, nowMs = Date.now())
   return Math.max(1, Math.min(86_400, delta));
 }
 
+function normalizeHostname(hostname: string): string {
+  if (hostname.startsWith("[") && hostname.endsWith("]")) return hostname.slice(1, -1);
+  return hostname;
+}
+
 function validateRequest(input: SourceHttpRequest): void {
   if (input.url.protocol !== "https:") {
     throw new CollectionFailure("SCHEMA_ERROR", "Source URL must use HTTPS", false);
@@ -50,6 +61,13 @@ function validateRequest(input: SourceHttpRequest): void {
   }
   if (input.url.hostname !== input.allowedHost || input.url.pathname !== input.allowedPath) {
     throw new CollectionFailure("SCHEMA_ERROR", "Source URL is outside the fixed provider endpoint", false);
+  }
+  const hostname = normalizeHostname(input.url.hostname);
+  if (isForbiddenSourceHostname(hostname)) {
+    throw new CollectionFailure("SCHEMA_ERROR", "Source hostname is not an admitted public Internet destination", false);
+  }
+  if (isIP(hostname) !== 0 && !isPublicInternetAddress(hostname)) {
+    throw new CollectionFailure("SCHEMA_ERROR", "Source address is private, reserved, link-local, loopback or otherwise non-public", false);
   }
   if (!Number.isInteger(input.maxBytes) || input.maxBytes < 1) {
     throw new CollectionFailure("INTERNAL_ERROR", "Source response byte limit is invalid", false);
@@ -70,6 +88,34 @@ function validateRequest(input: SourceHttpRequest): void {
     if (Buffer.byteLength(input.body, "utf8") > maxRequestBytes) {
       throw new CollectionFailure("PAYLOAD_LIMIT_EXCEEDED", `Source request exceeds ${maxRequestBytes} bytes`, false);
     }
+  }
+}
+
+async function defaultResolveHost(hostname: string): Promise<readonly string[]> {
+  const records = await lookup(hostname, { all: true, verbatim: true });
+  return records.map((record) => record.address);
+}
+
+async function validateResolvedDestination(input: SourceHttpRequest): Promise<void> {
+  const hostname = normalizeHostname(input.url.hostname);
+  if (isIP(hostname) !== 0) return;
+
+  // Deterministic unit transports intentionally avoid real DNS. Production calls
+  // use the native transport and therefore always perform this resolution check.
+  const resolver = input.resolveHost ?? (input.fetchImpl === undefined ? defaultResolveHost : null);
+  if (!resolver) return;
+
+  let addresses: readonly string[];
+  try {
+    addresses = await resolver(hostname);
+  } catch (error) {
+    throw new CollectionFailure("TRANSPORT_ERROR", "Source DNS resolution failed", true, { cause: error });
+  }
+  if (addresses.length === 0) {
+    throw new CollectionFailure("TRANSPORT_ERROR", "Source DNS resolution returned no addresses", true);
+  }
+  if (addresses.some((address) => !isPublicInternetAddress(address))) {
+    throw new CollectionFailure("SCHEMA_ERROR", "Source hostname resolved to a non-public network address", false);
   }
 }
 
@@ -139,6 +185,7 @@ function statusFailure(response: Response, redactValues: readonly string[] = [])
 
 export async function fetchBoundedSource(input: SourceHttpRequest): Promise<SourceHttpResponse> {
   validateRequest(input);
+  await validateResolvedDestination(input);
   const accepted = new Set(input.acceptedStatuses ?? [200]);
   const controller = new AbortController();
   const onAbort = () => controller.abort();
