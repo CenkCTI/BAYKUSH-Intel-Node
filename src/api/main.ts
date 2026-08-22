@@ -7,7 +7,9 @@ const server = createApiServer();
 // Production API uses the NODE-8C read-only database principal. In that mode the
 // API is observed by active probes rather than by granting a write exception to
 // runtime_heartbeats. Development can keep the historical DB heartbeat behavior.
-const stopHeartbeat = process.env.API_HEARTBEAT_MODE === "PROBE_ONLY"
+const probeOnlyHeartbeat = process.env.API_HEARTBEAT_MODE === "PROBE_ONLY"
+  || (process.env.API_HEARTBEAT_MODE === undefined && process.env.NODE_ENV === "production");
+const stopHeartbeat = probeOnlyHeartbeat
   ? () => {}
   : startHeartbeatLoop("API", { port: config.port });
 
