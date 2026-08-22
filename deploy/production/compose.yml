@@ -17,7 +17,6 @@ x-node-image: &node-image
       max-file: "5"
 
 x-node-env: &node-env
-  DATABASE_URL_FILE: /run/secrets/baykush/database_url
   ENABLE_TEST_SYNTHETIC: "false"
   WORKER_RETRY_BASE_SECONDS: ${WORKER_RETRY_BASE_SECONDS:-5}
   WORKER_RETRY_MAX_SECONDS: ${WORKER_RETRY_MAX_SECONDS:-300}
@@ -74,6 +73,7 @@ services:
     command: ["/bin/sh", "scripts/runtime-with-secrets.sh", "node", "scripts/migrate.mjs"]
     environment:
       <<: *node-env
+      DATABASE_URL_FILE: /run/secrets/baykush/db_migrator_url
     depends_on:
       postgres:
         condition: service_healthy
@@ -83,6 +83,7 @@ services:
     command: ["/bin/sh", "scripts/runtime-with-secrets.sh", "node", "dist/api/main.js"]
     environment:
       <<: *node-env
+      DATABASE_URL_FILE: /run/secrets/baykush/db_api_url
       PORT: "8080"
       NODE_INSTANCE_ID: api-1
       BAYKUSH_NODE_API_CREDENTIALS_FILE: /run/secrets/baykush/api_credentials.json
@@ -109,6 +110,7 @@ services:
     command: ["/bin/sh", "scripts/runtime-with-secrets.sh", "node", "dist/scheduler/main.js"]
     environment:
       <<: *node-env
+      DATABASE_URL_FILE: /run/secrets/baykush/db_ingest_url
       NODE_INSTANCE_ID: scheduler-1
     depends_on:
       migrate:
@@ -119,6 +121,7 @@ services:
     command: ["/bin/sh", "scripts/runtime-with-secrets.sh", "node", "dist/worker/node5-main.js"]
     environment:
       <<: *node-env
+      DATABASE_URL_FILE: /run/secrets/baykush/db_ingest_url
       NODE_INSTANCE_ID: worker-1
       NVD_API_KEY_FILE: ${NVD_API_KEY_FILE:-}
       THREATFOX_AUTH_KEY_FILE: ${THREATFOX_AUTH_KEY_FILE:-}
@@ -132,6 +135,7 @@ services:
     command: ["/bin/sh", "scripts/runtime-with-secrets.sh", "node", "dist/backfill/main.js"]
     environment:
       <<: *node-env
+      DATABASE_URL_FILE: /run/secrets/baykush/db_ingest_url
       NODE_INSTANCE_ID: backfill-1
       NVD_API_KEY_FILE: ${NVD_API_KEY_FILE:-}
     depends_on:
@@ -143,6 +147,7 @@ services:
     command: ["/bin/sh", "scripts/runtime-with-secrets.sh", "node", "dist/normalizer/main.js"]
     environment:
       <<: *node-env
+      DATABASE_URL_FILE: /run/secrets/baykush/db_ingest_url
       NODE_INSTANCE_ID: normalizer-1
     depends_on:
       migrate:
@@ -153,6 +158,7 @@ services:
     command: ["/bin/sh", "scripts/runtime-with-secrets.sh", "node", "dist/measurement/main.js"]
     environment:
       <<: *node-env
+      DATABASE_URL_FILE: /run/secrets/baykush/db_projection_url
       NODE_INSTANCE_ID: measurement-1
     depends_on:
       migrate:
@@ -163,6 +169,7 @@ services:
     command: ["/bin/sh", "scripts/runtime-with-secrets.sh", "node", "dist/discovery/worker/main.js"]
     environment:
       <<: *node-env
+      DATABASE_URL_FILE: /run/secrets/baykush/db_projection_url
       NODE_INSTANCE_ID: discovery-1
       IPINFO_LITE_TOKEN_FILE: ${IPINFO_LITE_TOKEN_FILE:-}
       NODE7_GEO_HTTP_TIMEOUT_MS: ${NODE7_GEO_HTTP_TIMEOUT_MS:-8000}
@@ -176,6 +183,7 @@ services:
     command: ["/bin/sh", "scripts/runtime-with-secrets.sh", "node", "dist/stream/main.js"]
     environment:
       <<: *node-env
+      DATABASE_URL_FILE: /run/secrets/baykush/db_stream_url
       NODE_INSTANCE_ID: stream-worker-1
       STREAM_RAW_RETENTION_HOURS: ${STREAM_RAW_RETENTION_HOURS:-48}
       STREAM_QUEUE_MAX_MESSAGES: ${STREAM_QUEUE_MAX_MESSAGES:-50000}
@@ -191,6 +199,7 @@ services:
     command: ["/bin/sh", "scripts/runtime-with-secrets.sh", "node", "dist/recovery/main.js"]
     environment:
       <<: *node-env
+      DATABASE_URL_FILE: /run/secrets/baykush/db_recovery_url
       NODE_INSTANCE_ID: recovery-worker-1
       RECOVERY_AUTO_ENABLED: ${RECOVERY_AUTO_ENABLED:-false}
       RECOVERY_STAGING_DIR: /var/lib/baykush/recovery
