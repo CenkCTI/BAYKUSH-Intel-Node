@@ -153,7 +153,7 @@ jobs:
           NODE
           mkdir -p /tmp/node8-wrapper-test
           printf '%s\n' 'postgres://ci:ci@postgres:5432/ci' > /tmp/node8-wrapper-test/database_url
-          DATABASE_URL_FILE=/tmp/node8-wrapper-test/database_url sh scripts/runtime-with-secrets.sh sh -c 'test "$DATABASE_URL" = "postgres://ci:ci@postgres:5432/ci"'
+          env -u DATABASE_URL DATABASE_URL_FILE=/tmp/node8-wrapper-test/database_url sh scripts/runtime-with-secrets.sh sh -c 'test "$DATABASE_URL" = "postgres://ci:ci@postgres:5432/ci"'
           docker run --rm \
             -e NODE_HOSTNAME=node.example.com \
             -e ACME_EMAIL=ops@example.com \
