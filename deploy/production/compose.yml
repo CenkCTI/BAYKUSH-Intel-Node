@@ -4,6 +4,18 @@ x-node-image: &node-image
   image: ${BAYKUSH_NODE_IMAGE:?BAYKUSH_NODE_IMAGE must be an immutable release tag or digest}
   pull_policy: always
   restart: unless-stopped
+  init: true
+  read_only: true
+  security_opt:
+    - no-new-privileges:true
+  cap_drop:
+    - ALL
+  pids_limit: ${NODE_DEFAULT_PIDS_LIMIT:-128}
+  mem_limit: ${NODE_DEFAULT_MEM_LIMIT:-384m}
+  cpus: ${NODE_DEFAULT_CPUS:-0.50}
+  stop_grace_period: 30s
+  tmpfs:
+    - /tmp:rw,noexec,nosuid,nodev,size=64m
   networks:
     - backend
   group_add:
@@ -28,6 +40,19 @@ services:
   caddy:
     image: caddy:2-alpine
     restart: unless-stopped
+    init: true
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    cap_add:
+      - NET_BIND_SERVICE
+    pids_limit: 96
+    mem_limit: ${CADDY_MEM_LIMIT:-192m}
+    cpus: ${CADDY_CPUS:-0.25}
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev,size=32m
     environment:
       NODE_HOSTNAME: ${NODE_HOSTNAME:?NODE_HOSTNAME is required}
       ACME_EMAIL: ${ACME_EMAIL:-}
@@ -49,6 +74,11 @@ services:
   postgres:
     image: postgres:16-bookworm
     restart: unless-stopped
+    init: true
+    pids_limit: ${POSTGRES_PIDS_LIMIT:-256}
+    mem_limit: ${POSTGRES_MEM_LIMIT:-2g}
+    cpus: ${POSTGRES_CPUS:-1.50}
+    stop_grace_period: 60s
     group_add:
       - "${BAYKUSH_SECRET_GID:-2000}"
     environment:
@@ -70,6 +100,8 @@ services:
   migrate:
     <<: *node-image
     restart: "no"
+    mem_limit: ${MIGRATE_MEM_LIMIT:-512m}
+    cpus: ${MIGRATE_CPUS:-0.75}
     command: ["/bin/sh", "scripts/runtime-with-secrets.sh", "node", "scripts/migrate.mjs"]
     environment:
       <<: *node-env
@@ -80,6 +112,8 @@ services:
 
   api:
     <<: *node-image
+    mem_limit: ${API_MEM_LIMIT:-512m}
+    cpus: ${API_CPUS:-0.75}
     command: ["/bin/sh", "scripts/runtime-with-secrets.sh", "node", "dist/api/main.js"]
     environment:
       <<: *node-env
@@ -118,6 +152,8 @@ services:
 
   worker:
     <<: *node-image
+    mem_limit: ${WORKER_MEM_LIMIT:-768m}
+    cpus: ${WORKER_CPUS:-1.00}
     command: ["/bin/sh", "scripts/runtime-with-secrets.sh", "node", "dist/worker/node5-main.js"]
     environment:
       <<: *node-env
@@ -132,6 +168,8 @@ services:
 
   backfill:
     <<: *node-image
+    mem_limit: ${BACKFILL_MEM_LIMIT:-768m}
+    cpus: ${BACKFILL_CPUS:-0.75}
     command: ["/bin/sh", "scripts/runtime-with-secrets.sh", "node", "dist/backfill/main.js"]
     environment:
       <<: *node-env
@@ -144,6 +182,8 @@ services:
 
   normalizer:
     <<: *node-image
+    mem_limit: ${NORMALIZER_MEM_LIMIT:-768m}
+    cpus: ${NORMALIZER_CPUS:-0.75}
     command: ["/bin/sh", "scripts/runtime-with-secrets.sh", "node", "dist/normalizer/main.js"]
     environment:
       <<: *node-env
@@ -155,6 +195,8 @@ services:
 
   measurement:
     <<: *node-image
+    mem_limit: ${MEASUREMENT_MEM_LIMIT:-768m}
+    cpus: ${MEASUREMENT_CPUS:-0.75}
     command: ["/bin/sh", "scripts/runtime-with-secrets.sh", "node", "dist/measurement/main.js"]
     environment:
       <<: *node-env
@@ -166,6 +208,8 @@ services:
 
   discovery:
     <<: *node-image
+    mem_limit: ${DISCOVERY_MEM_LIMIT:-768m}
+    cpus: ${DISCOVERY_CPUS:-0.75}
     command: ["/bin/sh", "scripts/runtime-with-secrets.sh", "node", "dist/discovery/worker/main.js"]
     environment:
       <<: *node-env
@@ -180,6 +224,9 @@ services:
 
   stream-worker:
     <<: *node-image
+    mem_limit: ${STREAM_MEM_LIMIT:-1g}
+    cpus: ${STREAM_CPUS:-1.00}
+    pids_limit: ${STREAM_PIDS_LIMIT:-192}
     command: ["/bin/sh", "scripts/runtime-with-secrets.sh", "node", "dist/stream/main.js"]
     environment:
       <<: *node-env
@@ -196,6 +243,9 @@ services:
 
   recovery-worker:
     <<: *node-image
+    mem_limit: ${RECOVERY_MEM_LIMIT:-1g}
+    cpus: ${RECOVERY_CPUS:-1.00}
+    pids_limit: ${RECOVERY_PIDS_LIMIT:-192}
     command: ["/bin/sh", "scripts/runtime-with-secrets.sh", "node", "dist/recovery/main.js"]
     environment:
       <<: *node-env
@@ -216,16 +266,6 @@ services:
     volumes:
       - ${BAYKUSH_SECRET_DIR}:/run/secrets/baykush:ro
       - baykush_recovery:/var/lib/baykush/recovery
-    read_only: true
-    tmpfs:
-      - /tmp:rw,noexec,nosuid,size=64m
-    security_opt:
-      - no-new-privileges:true
-    cap_drop:
-      - ALL
-    pids_limit: 128
-    mem_limit: 1g
-    cpus: 1.0
     depends_on:
       migrate:
         condition: service_completed_successfully
