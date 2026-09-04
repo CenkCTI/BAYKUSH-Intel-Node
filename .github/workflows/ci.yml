@@ -48,7 +48,7 @@ jobs:
           npm run test:migration
           npm run test:node4-backfill
       - name: NODE-8C database role acceptance
-        run: node scripts/test-node8c-db-roles.mjs
+        run: node scripts/node8-db-role-acceptance.mjs
       - name: NODE-5A source admission acceptance
         run: npm run test:node5a
       - name: Runtime acceptance

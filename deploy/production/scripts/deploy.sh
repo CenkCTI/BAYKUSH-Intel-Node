@@ -18,7 +18,7 @@ docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" up -d postgres
 printf 'deploy: running one-shot migration gate with migration-only credential\n'
 docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" run --rm migrate
 
-printf 'deploy: provisioning/rotating least-privilege runtime database logins\n'
+printf 'deploy: provisioning least-privilege runtime database logins\n'
 bash "$DB_ROLE_SCRIPT"
 
 printf 'deploy: starting runtime services\n'
