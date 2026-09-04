@@ -107,7 +107,6 @@ jobs:
           BAYKUSH_SECRET_DIR: /tmp/baykush-ci-secrets
           POSTGRES_DB: baykush
           POSTGRES_USER: baykush
-          NVD_API_KEY_FILE: /run/secrets/baykush/nvd_api_key
           API_RATE_LIMIT_WINDOW_MS: "60000"
           API_RATE_LIMIT_STANDARD: "120"
           API_RATE_LIMIT_EXPENSIVE: "30"
