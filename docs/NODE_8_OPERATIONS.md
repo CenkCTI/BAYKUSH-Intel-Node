@@ -12,7 +12,8 @@ Make production degradation visible without confusing infrastructure/collection 
 
 - database reachability/time;
 - active runtime component heartbeat ages/freshness;
-- enabled source collection health and timestamps;
+- expected-component `FRESH`, `STALE`, and `MISSING` heartbeat states (60-second threshold);
+- enabled source collection health, cadence-derived freshness, latest coverage and timestamps;
 - bounded failure classes/counters already present in source health;
 - explicit semantic disclaimers.
 
@@ -24,7 +25,11 @@ The NODE-8C API database principal is deliberately read-only. Production therefo
 
 Write-authorized long-lived worker planes continue durable DB heartbeats. NODE-8G adds `DISCOVERY_WORKER` so discovery/convergence/geography projection freshness is no longer invisible.
 
+Heartbeat metadata is deliberately omitted from the operations API. Heartbeats establish bounded process-liveness evidence only; they do not claim that a provider operation or collection attempt succeeded. A stopped/restarted service is represented by a stale heartbeat followed by the later instance heartbeat when it resumes.
+
 A missing/stale heartbeat means the component is absent, stale or unable to report. It does not mean zero workload, zero incidents or healthy upstream data.
+
+Enabled source freshness becomes `STALE` deterministically when the last successful collection is older than twice that source's configured poll interval. A failure newer than the last success is `RECENT_FAILURE`; no attempts are `NEVER_RUN`; absent coverage is `UNKNOWN`. Disabled sources are excluded. None of these states imply zero attacks, no activity, threat likelihood, incident volume, or attacker origin.
 
 ## Host operations snapshot
 
@@ -35,6 +40,7 @@ A missing/stale heartbeat means the component is absent, stale or unable to repo
 - disk utilization;
 - latest encrypted backup age;
 - threshold-derived `HEALTHY`, `DEGRADED` or `CRITICAL` state;
+- explicit unknown/failed check state when Docker, disk, API, or restic evidence cannot be obtained;
 - explicit `containsSecrets: false` assertion.
 
 Initial defaults:
@@ -44,6 +50,7 @@ Initial defaults:
 - backup stale after 8 hours (compatible with the 6-hour backup target plus scheduling margin).
 
 Thresholds are operational defaults, not semantic intelligence thresholds.
+Backup freshness comes from the timestamp of the latest successfully queried `baykush-node` restic snapshot, never directory existence. A missing snapshot or failed/unavailable restic query is `BACKUP_UNKNOWN`, not healthy.
 
 ## Structured failure semantics
 

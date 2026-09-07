@@ -48,7 +48,9 @@ jobs:
           npm run test:migration
           npm run test:node4-backfill
       - name: NODE-8C database role acceptance
-        run: node scripts/test-node8c-db-roles.mjs
+        run: node scripts/node8-db-role-acceptance.mjs
+      - name: NODE-8G operations health acceptance
+        run: npm run test:node8g
       - name: NODE-5A source admission acceptance
         run: npm run test:node5a
       - name: Runtime acceptance
@@ -109,7 +111,6 @@ jobs:
           BAYKUSH_SECRET_DIR: /tmp/baykush-ci-secrets
           POSTGRES_DB: baykush
           POSTGRES_USER: baykush
-          NVD_API_KEY_FILE: /run/secrets/baykush/nvd_api_key
           API_RATE_LIMIT_WINDOW_MS: "60000"
           API_RATE_LIMIT_STANDARD: "120"
           API_RATE_LIMIT_EXPENSIVE: "30"
@@ -118,6 +119,8 @@ jobs:
           bash -n deploy/production/scripts/deploy.sh
           bash -n deploy/production/scripts/smoke-test.sh
           bash -n deploy/production/scripts/provision-db-roles.sh
+          bash -n deploy/production/scripts/network-audit.sh
+          bash -n deploy/production/scripts/ops-snapshot.sh
           sh -n scripts/runtime-with-secrets.sh
           docker compose -f deploy/production/compose.yml config --format json > /tmp/node8-compose.json
           node scripts/node8-compose-acceptance.mjs /tmp/node8-compose.json
@@ -129,6 +132,8 @@ jobs:
             -e ACME_EMAIL=ops@example.com \
             -v "$PWD/deploy/production/Caddyfile:/etc/caddy/Caddyfile:ro" \
             caddy:2-alpine caddy validate --config /etc/caddy/Caddyfile
+      - name: NODE-8F isolated encrypted backup and real restore acceptance
+        run: npm run test:node8f-real
       - name: Build
         run: npm run build
       - name: Build container including pinned MRT decoder

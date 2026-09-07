@@ -56,7 +56,7 @@ Required files are:
 
 ```text
 postgres_password
-database_url
+db_migrator_url
 api_credentials.json
 smoke_api_token
 ```
@@ -72,9 +72,20 @@ malwarebazaar_auth_key
 ipinfo_lite_token
 ```
 
+For each configured provider, set its `*_HOST_FILE` to that root-owned host
+file and its `*_FILE` to the fixed `/run/secrets/providers/...` container path
+shown in `env.example`. Compose mounts each provider file only into the service
+that consumes it; it never mounts the complete secret directory.
+
 Use `api-credentials.example.json` only as a schema example. Generate random real tokens out of band and never commit the populated registry. `smoke_api_token` is a host-side copy of one active credential carrying both `techint:read` and `sources:read`.
 
-The `database_url` file is the transitional shared database URL. NODE-8C replaces it with role-specific connection files without returning raw credentials to `runtime.env`.
+The first deploy runs the migration gate with `db_migrator_url`, then
+`provision-db-roles.sh` creates the five runtime password/URL pairs:
+`db_{api,ingest,projection,stream,recovery}_{password,url}`. Reruns preserve the
+current passwords. To rotate all runtime database credentials without changing
+schema or data, run the provisioner with `ROTATE_DB_ROLE_PASSWORDS=true`, then
+restart the runtime services. Generated files remain `root:BAYKUSH_SECRET_GID`
+mode `0440`; no interactive user belongs to that group.
 
 ## Image identity
 
@@ -105,7 +116,7 @@ sudo bash /opt/baykush-node/scripts/deploy.sh
 NODE-8H extends this script with mandatory pre-deploy backup/release evidence. The ordering contract is already fixed:
 
 ```text
-preflight -> pull -> PostgreSQL -> migrate -> services -> health -> authenticated smoke
+preflight -> pull -> PostgreSQL -> migrate -> provision runtime roles -> services -> health -> authenticated smoke
 ```
 
 ## API credential rotation
@@ -120,7 +131,13 @@ Full rules are in `docs/NODE_8_SECRETS_AND_API_SECURITY.md`.
 
 ## systemd
 
-Install `systemd/baykush-node.service` as `/etc/systemd/system/baykush-node.service`, reload systemd and enable it for boot. The unit performs Compose validation before startup and uses the same `/etc/baykush/runtime.env` contract.
+Install `systemd/baykush-node.service`, `systemd/baykush-backup.service`, and
+`systemd/baykush-backup.timer` under `/etc/systemd/system`, reload systemd, and
+enable the Node service and backup timer. The backup timer is persistent and
+runs near 00:15, 06:15, 12:15 and 18:15 UTC with up to ten minutes of jitter.
+Its oneshot service loads off-host credentials only from the root-owned host
+file and uses a non-blocking lock to reject overlaps. See
+`docs/NODE_8_BACKUP_RECOVERY.md` for restore and host-replacement procedures.
 
 The host-reboot acceptance in NODE-8I must demonstrate that no interactive SSH action is required for the Node to return to a healthy collection state.
 

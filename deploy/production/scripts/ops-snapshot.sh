@@ -26,20 +26,37 @@ for command in docker df node mktemp; do command -v "$command" >/dev/null 2>&1 |
 tmp=$(mktemp -d /tmp/baykush-ops.XXXXXXXX)
 trap 'rm -rf "$tmp"' EXIT
 
-docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" ps --format json > "$tmp/containers.json" || true
-df -P /var/lib/docker 2>/dev/null | tail -n1 > "$tmp/disk.txt" || df -P / | tail -n1 > "$tmp/disk.txt"
+if docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" ps --format json > "$tmp/containers.json"; then
+  printf 'ok\n' > "$tmp/containers.status"
+else
+  printf 'failed\n' > "$tmp/containers.status"
+  : > "$tmp/containers.json"
+fi
+if df -P /var/lib/docker 2>/dev/null | tail -n1 > "$tmp/disk.txt" || df -P / | tail -n1 > "$tmp/disk.txt"; then
+  printf 'ok\n' > "$tmp/disk.status"
+else
+  printf 'failed\n' > "$tmp/disk.status"
+  : > "$tmp/disk.txt"
+fi
 
 if docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" exec -T api \
   node -e "fetch('http://127.0.0.1:8080/v1/health').then(async r=>{if(!r.ok)process.exit(1);process.stdout.write(await r.text())}).catch(()=>process.exit(1))" \
   > "$tmp/api-health.json" 2>/dev/null; then
-  :
+  printf 'ok\n' > "$tmp/api.status"
 else
+  printf 'failed\n' > "$tmp/api.status"
   printf '%s\n' '{"status":"unreachable"}' > "$tmp/api-health.json"
 fi
 
 if command -v restic >/dev/null 2>&1 && [[ -n "${RESTIC_REPOSITORY:-}" && -n "${RESTIC_PASSWORD_FILE:-}" ]]; then
-  restic snapshots --latest 1 --tag baykush-node --json > "$tmp/backups.json" 2>/dev/null || printf '%s\n' '[]' > "$tmp/backups.json"
+  if restic snapshots --latest 1 --tag baykush-node --json > "$tmp/backups.json" 2>/dev/null; then
+    printf 'ok\n' > "$tmp/backups.status"
+  else
+    printf 'failed\n' > "$tmp/backups.status"
+    printf '%s\n' '[]' > "$tmp/backups.json"
+  fi
 else
+  printf 'unavailable\n' > "$tmp/backups.status"
   printf '%s\n' '[]' > "$tmp/backups.json"
 fi
 
@@ -47,49 +64,9 @@ mkdir -p "$OPS_EVIDENCE_DIR"
 chmod 0700 "$OPS_EVIDENCE_DIR"
 out="$OPS_EVIDENCE_DIR/ops-$(date -u +%Y%m%dT%H%M%SZ).json"
 
-node - "$tmp/containers.json" "$tmp/disk.txt" "$tmp/api-health.json" "$tmp/backups.json" "$out" "$DISK_WARN_PERCENT" "$DISK_CRITICAL_PERCENT" "$BACKUP_MAX_AGE_HOURS" <<'NODE'
-const fs = require('node:fs');
-const [containersPath, diskPath, apiPath, backupPath, out, warnRaw, criticalRaw, backupMaxRaw] = process.argv.slice(2);
-const parseJsonLoose = (text) => {
-  const trimmed = text.trim();
-  if (!trimmed) return [];
-  try { const parsed = JSON.parse(trimmed); return Array.isArray(parsed) ? parsed : [parsed]; }
-  catch { return trimmed.split(/\n+/).filter(Boolean).map((line) => JSON.parse(line)); }
-};
-const containers = parseJsonLoose(fs.readFileSync(containersPath, 'utf8'));
-const diskFields = fs.readFileSync(diskPath, 'utf8').trim().split(/\s+/);
-const diskPercent = Number((diskFields[4] ?? '0%').replace('%', ''));
-let api;
-try { api = JSON.parse(fs.readFileSync(apiPath, 'utf8')); } catch { api = { status: 'unparseable' }; }
-const backups = parseJsonLoose(fs.readFileSync(backupPath, 'utf8'));
-const latest = backups[0] ?? null;
-const backupAgeHours = latest?.time ? (Date.now() - Date.parse(latest.time)) / 3_600_000 : null;
-const warn = Number(warnRaw), critical = Number(criticalRaw), backupMax = Number(backupMaxRaw);
-const unhealthyContainers = containers.filter((item) => {
-  const state = String(item.State ?? item.state ?? '').toLowerCase();
-  const health = String(item.Health ?? item.health ?? '').toLowerCase();
-  return state && state !== 'running' || health === 'unhealthy';
-}).map((item) => item.Service ?? item.Name ?? item.name ?? 'unknown');
-const problems = [];
-if (diskPercent >= critical) problems.push({ class: 'DISK_CRITICAL', diskPercent });
-else if (diskPercent >= warn) problems.push({ class: 'DISK_WARNING', diskPercent });
-if (api?.data?.status !== 'ok' && api?.status !== 'ok') problems.push({ class: 'API_UNHEALTHY' });
-if (unhealthyContainers.length) problems.push({ class: 'CONTAINER_UNHEALTHY', services: unhealthyContainers });
-if (backupAgeHours === null) problems.push({ class: 'BACKUP_UNKNOWN' });
-else if (backupAgeHours > backupMax) problems.push({ class: 'BACKUP_STALE', backupAgeHours });
-const evidence = {
-  schemaVersion: 'NODE8_OPS_SNAPSHOT_V1',
-  observedAt: new Date().toISOString(),
-  status: problems.some((p) => p.class === 'DISK_CRITICAL' || p.class === 'API_UNHEALTHY' || p.class === 'CONTAINER_UNHEALTHY') ? 'CRITICAL' : problems.length ? 'DEGRADED' : 'HEALTHY',
-  disk: { usedPercent: diskPercent, warningPercent: warn, criticalPercent: critical },
-  api: { reachable: !problems.some((p) => p.class === 'API_UNHEALTHY') },
-  containers: { count: containers.length, unhealthy: unhealthyContainers },
-  backup: { latestAt: latest?.time ?? null, ageHours: backupAgeHours, maxAgeHours: backupMax },
-  problems,
-  containsSecrets: false,
-};
-fs.writeFileSync(out, JSON.stringify(evidence, null, 2) + '\n', { mode: 0o600 });
-process.stdout.write(JSON.stringify(evidence, null, 2) + '\n');
-NODE
+node "$(dirname "$0")/node8-ops-snapshot-evidence.mjs" \
+  "$tmp/containers.json" "$tmp/containers.status" "$tmp/disk.txt" "$tmp/disk.status" \
+  "$tmp/api-health.json" "$tmp/api.status" "$tmp/backups.json" "$tmp/backups.status" \
+  "$out" "$DISK_WARN_PERCENT" "$DISK_CRITICAL_PERCENT" "$BACKUP_MAX_AGE_HOURS"
 
 printf 'ops-snapshot: evidence=%s\n' "$out" >&2
