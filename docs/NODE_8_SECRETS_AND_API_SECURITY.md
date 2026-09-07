@@ -13,7 +13,12 @@ Example host layout with `BAYKUSH_SECRET_GID=2000`:
   runtime.env                 # root:root 0600; paths/limits only
   secrets/                    # root:2000 0750
     postgres_password         # root:2000 0440
-    database_url              # root:2000 0440; role-specific in NODE-8C
+    db_migrator_url           # root:2000 0440; one-shot migration service only
+    db_api_url                # root:2000 0440; read-only API login
+    db_ingest_url             # root:2000 0440; ingestion-plane login
+    db_projection_url         # root:2000 0440; measurement/discovery login
+    db_stream_url             # root:2000 0440; live stream login
+    db_recovery_url           # root:2000 0440; recovery login
     api_credentials.json      # root:2000 0440
     smoke_api_token           # root:2000 0440; host-only active scoped credential
     nvd_api_key               # optional root:2000 0440
@@ -22,11 +27,21 @@ Example host layout with `BAYKUSH_SECRET_GID=2000`:
     ipinfo_lite_token         # optional root:2000 0440
 ```
 
-The production Compose stack mounts the secret directory read-only at `/run/secrets/baykush` and adds only the configured supplemental GID to Node/PostgreSQL containers. Normal runtime environment variables contain only secret **paths**. A tiny PID-1 wrapper resolves provider/database files immediately before the Node process is executed so raw secret values do not appear in the Compose model or Docker container configuration.
+Production Compose mounts individual secret files read-only and adds only the
+configured supplemental GID to the consuming Node/PostgreSQL containers. It
+does not mount the complete secret directory into runtime services. Normal
+runtime environment variables contain only secret **paths**. A tiny PID-1
+wrapper resolves provider/database files immediately before the Node process is
+executed so raw secret values do not appear in the Compose model or Docker
+container configuration.
 
 The API credential registry is read directly from its mounted file and never needs to be exported as a process environment value.
 
-The initial NODE-8B stack mounts the common secret directory read-only. NODE-8C narrows database credentials by service/role; later runtime hardening may further split provider-secret mounts where operationally useful.
+The initial NODE-8B stack mounted the common secret directory read-only.
+NODE-8C gives each service only its role-specific database URL path; the
+migration URL is referenced only by the one-shot migration service. Later
+runtime hardening may further split provider-secret mounts where operationally
+useful.
 
 ## Development compatibility
 

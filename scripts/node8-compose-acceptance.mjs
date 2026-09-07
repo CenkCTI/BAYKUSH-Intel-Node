@@ -80,6 +80,17 @@ assert(Number(caddy.pids_limit) > 0 && caddy.mem_limit !== undefined && Number(c
 const postgres = config.services.postgres;
 assert(Number(postgres.pids_limit) > 0 && postgres.mem_limit !== undefined && Number(postgres.cpus) > 0, "PostgreSQL must be resource bounded");
 
+const volumeTargets = (service) => (config.services[service].volumes ?? []).map((volume) => volume.target);
+for (const [service, expectedFile] of Object.entries(expectedDbFiles)) {
+  const targets = volumeTargets(service);
+  assert(targets.includes(expectedFile), `${service} must mount its database credential file`);
+  for (const [otherService, forbiddenFile] of Object.entries(expectedDbFiles)) {
+    if (otherService !== service && forbiddenFile !== expectedFile) assert(!targets.includes(forbiddenFile), `${service} must not mount ${otherService} database credential`);
+  }
+  assert(!targets.includes("/run/secrets/baykush"), `${service} must not mount the complete secret directory`);
+}
+assert(volumeTargets("postgres").includes("/run/secrets/baykush/postgres_password"), "PostgreSQL must mount only its password file");
+
 console.log(JSON.stringify({
   schemaVersion: "NODE8_PRODUCTION_COMPOSE_ACCEPTANCE_V3",
   accepted: true,

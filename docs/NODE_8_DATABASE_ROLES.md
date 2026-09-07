@@ -10,9 +10,9 @@ Migration `0039_node8c_runtime_database_roles.sql` creates NOLOGIN capability ro
 
 - `baykush_api` — read-only global/public Node state;
 - `baykush_ingest` — collection, normalization, source state and backfill writes;
-- `baykush_projection` — measurement, coverage, discovery, convergence and geography writes;
-- `baykush_stream` — live routing/stream writes;
-- `baykush_recovery` — routing recovery writes plus narrowly bounded stream/recovery retention delete authority.
+- `baykush_projection` — measurement, coverage, entity, discovery, convergence, geography and derived routing writes;
+- `baykush_stream` — live stream/segment writes and expired payload retention;
+- `baykush_recovery` — recovery-request and recovered-routing writes.
 
 The roles are deliberately NOLOGIN. They express database authority, not credentials.
 
@@ -28,7 +28,7 @@ The roles are deliberately NOLOGIN. They express database authority, not credent
 
 All are `NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION`. The API login also has `default_transaction_read_only=on` as a defense-in-depth control in addition to SQL grants. Runtime logins receive bounded statement and idle-transaction timeouts.
 
-Passwords are random 64-character hexadecimal values generated on the production host. They are stored only in root-owned, read-only secret files and may be rotated by rerunning the provisioning script. Generated connection URL files remain root-owned/group-readable by the dedicated non-interactive secret GID.
+Passwords are random 64-character hexadecimal values generated on the production host. They are stored only in root-owned, read-only secret files. Normal reruns are idempotent; set `ROTATE_DB_ROLE_PASSWORDS=true` for an explicit atomic credential rotation without schema or data destruction. Generated connection URL files remain root-owned/group-readable by the dedicated non-interactive secret GID.
 
 ## Migration authority
 
@@ -85,7 +85,7 @@ NODE-8C is accepted only when all of the following are demonstrated:
 - API login is transaction-read-only by default;
 - ingestion cannot perform DDL;
 - projection/stream/recovery writes are bounded to their declared table families;
-- only recovery has the declared retention DELETE surface;
+- DELETE is limited to projection work queues and stream expired-payload retention;
 - no runtime service receives `db_migrator_url`;
 - database passwords/URLs are absent from Git, Compose environment values, API responses and browser code;
 - the full NODE-0–7 regression suite still passes.
