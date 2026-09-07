@@ -131,7 +131,13 @@ Full rules are in `docs/NODE_8_SECRETS_AND_API_SECURITY.md`.
 
 ## systemd
 
-Install `systemd/baykush-node.service` as `/etc/systemd/system/baykush-node.service`, reload systemd and enable it for boot. The unit performs Compose validation before startup and uses the same `/etc/baykush/runtime.env` contract.
+Install `systemd/baykush-node.service`, `systemd/baykush-backup.service`, and
+`systemd/baykush-backup.timer` under `/etc/systemd/system`, reload systemd, and
+enable the Node service and backup timer. The backup timer is persistent and
+runs near 00:15, 06:15, 12:15 and 18:15 UTC with up to ten minutes of jitter.
+Its oneshot service loads off-host credentials only from the root-owned host
+file and uses a non-blocking lock to reject overlaps. See
+`docs/NODE_8_BACKUP_RECOVERY.md` for restore and host-replacement procedures.
 
 The host-reboot acceptance in NODE-8I must demonstrate that no interactive SSH action is required for the Node to return to a healthy collection state.
 

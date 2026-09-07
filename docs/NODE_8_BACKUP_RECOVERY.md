@@ -32,7 +32,11 @@ Excluded:
 - backup transport credentials;
 - transient recovery/download staging artifacts outside PostgreSQL.
 
-The manifest explicitly records `includesSecrets: false`; restore rejects a manifest that does not assert this contract.
+The versioned manifest records the database name and PostgreSQL version, UTC
+creation time, custom dump format and tool version, artifact size and SHA-256,
+the complete migration-ledger SHA-256/count, and deterministic raw/canonical
+counts and fingerprints. It explicitly records `includesSecrets: false`;
+restore rejects missing, malformed or inconsistent metadata.
 
 ## Schedule and retention
 
@@ -59,8 +63,10 @@ The restore path:
 4. recreate an isolated target database;
 5. `pg_restore` with no owner/ACL replay;
 6. verify migration ledger exists;
-7. query raw/canonical counts;
-8. write `NODE8_RESTORE_ACCEPTANCE_V1` evidence.
+7. compare the restored migration ledger byte-for-byte by SHA-256;
+8. compare raw/canonical counts and deterministic fingerprints and reject orphaned canonical provenance;
+9. verify the raw/canonical immutable revision triggers survived;
+10. write `NODE8_RESTORE_ACCEPTANCE_V1` evidence only after every check passes.
 
 Restoring over the production database has a second guard, `NODE8_RESTORE_PRODUCTION_CONFIRM=YES`. Normal acceptance must use an isolated database.
 
@@ -81,6 +87,21 @@ A real disaster recovery is:
 
 Secrets are deliberately not restored from the database backup. They are a separate operational custody domain.
 
+After installing the unit files, enable scheduling with
+`systemctl enable --now baykush-backup.timer`, inspect failures with
+`systemctl status baykush-backup.service`, and review logs with
+`journalctl -u baykush-backup.service`. The script takes a non-blocking host
+lock, so overlapping timer/manual runs fail visibly instead of racing.
+
+For deterministic development acceptance only, `BACKUP_ALLOW_LOCAL_REPOSITORY=true`
+and `NODE8_ISOLATED_TEST_MODE=true` permit a disposable local encrypted repository
+and direct disposable database container. Neither override is valid production
+configuration. Run `npm run test:node8f-real`; it restores representative
+raw/canonical provenance into a new database and verifies checksum, manifest,
+ledger, fingerprints and immutable guards. It also proves wrong-checksum,
+tampered-manifest, truncated-dump, missing-ledger-metadata and missing-artifact
+snapshots fail without producing accepted evidence.
+
 ## Retention classes
 
 - canonical/raw public-source provenance: durable by default;
@@ -92,4 +113,8 @@ Secrets are deliberately not restored from the database backup. They are a separ
 
 ## Acceptance
 
-NODE-8F is accepted only after an off-host encrypted snapshot is created and an isolated restore from that repository succeeds with checksum and migration-ledger verification. Merely seeing a successful backup command is insufficient.
+Local/CI contract acceptance does not constitute real off-host or replacement-host
+acceptance. Production NODE-8F acceptance additionally requires an encrypted
+snapshot in the configured off-host repository and an isolated restore from that
+repository on the real host (or replacement host). Merely seeing a successful
+backup command is insufficient.

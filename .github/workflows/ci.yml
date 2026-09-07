@@ -129,6 +129,8 @@ jobs:
             -e ACME_EMAIL=ops@example.com \
             -v "$PWD/deploy/production/Caddyfile:/etc/caddy/Caddyfile:ro" \
             caddy:2-alpine caddy validate --config /etc/caddy/Caddyfile
+      - name: NODE-8F isolated encrypted backup and real restore acceptance
+        run: npm run test:node8f-real
       - name: Build
         run: npm run build
       - name: Build container including pinned MRT decoder
