@@ -30,6 +30,7 @@ set +a
 POSTGRES_DB=${POSTGRES_DB:-baykush}
 BACKUP_STAGING_ROOT=${BACKUP_STAGING_ROOT:-/var/lib/baykush/backup-staging}
 BACKUP_ALLOW_LOCAL_REPOSITORY=${BACKUP_ALLOW_LOCAL_REPOSITORY:-false}
+BACKUP_EVIDENCE_OUT=${BACKUP_EVIDENCE_OUT:-}
 
 for command in docker restic sha256sum node stat mktemp flock; do
   command -v "$command" >/dev/null 2>&1 || fail "missing required command: $command"
@@ -133,7 +134,14 @@ printf 'backup: writing encrypted off-host restic snapshot\n'
     --tag baykush-node --tag node8 --host "$(hostname)" >/dev/null
 )
 
-restic snapshots --latest 1 --tag baykush-node --json >/dev/null
+snapshot_json=$(restic snapshots --latest 1 --tag baykush-node --json)
+snapshot_id=$(node -e '
+const value=JSON.parse(process.argv[1]);
+const snapshots=Array.isArray(value) ? value : value.snapshots;
+const latest=snapshots?.at(-1);
+if (!latest?.id || !/^[0-9a-f]{8,64}$/i.test(latest.id)) process.exit(1);
+process.stdout.write(latest.id);
+' "$snapshot_json") || fail 'restic did not return valid durable snapshot evidence'
 
 # Retention removes snapshot references. Pruning pack data is deliberately
 # separated/optional because prune can be expensive on a small host.
@@ -147,4 +155,22 @@ if [[ "${BACKUP_RUN_PRUNE:-false}" == true ]]; then
   restic prune >/dev/null
 fi
 
-printf 'backup: PASS created_at=%s dump_sha256=%s\n' "$timestamp" "$dump_sha"
+if [[ -n "$BACKUP_EVIDENCE_OUT" ]]; then
+  evidence_tmp=$(mktemp "${BACKUP_EVIDENCE_OUT}.tmp.XXXXXXXX")
+  node - "$evidence_tmp" "$timestamp" "$snapshot_id" "$dump_sha" "$migration_sha" <<'NODE'
+const fs = require('node:fs');
+const [path, createdAt, snapshotId, dumpSha256, migrationLedgerSha256] = process.argv.slice(2);
+fs.writeFileSync(path, JSON.stringify({
+  schemaVersion: 'NODE8_BACKUP_GATE_EVIDENCE_V1',
+  durable: true,
+  createdAt,
+  snapshotId,
+  dumpSha256,
+  migrationLedgerSha256,
+}, null, 2) + '\n', { mode: 0o600 });
+NODE
+  chmod 0600 "$evidence_tmp"
+  mv "$evidence_tmp" "$BACKUP_EVIDENCE_OUT"
+fi
+
+printf 'backup: PASS created_at=%s snapshot_id=%s dump_sha256=%s\n' "$timestamp" "$snapshot_id" "$dump_sha"

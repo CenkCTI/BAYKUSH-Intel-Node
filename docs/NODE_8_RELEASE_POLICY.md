@@ -38,7 +38,10 @@ Production `BAYKUSH_NODE_IMAGE` must be `repository@sha256:<digest>`. Tags alone
 - production Compose SHA-256;
 - pre-deploy backup-gate result;
 - smoke/runtime/network acceptance flags;
-- explicit secret exclusion.
+- an explicit `ACCEPTED` result written only after every gate passes.
+
+Evidence fields are allow-listed and contain no passwords, bearer tokens,
+provider credentials, secret-file contents, or credential-bearing database URLs.
 
 Release evidence lives under `/var/lib/baykush/releases` and is operational evidence, not canonical intelligence data.
 
@@ -71,12 +74,13 @@ There is no automated SQL down-migration path.
 It then:
 
 1. acquires the same deploy lock;
-2. reads current/previous digest evidence;
-3. creates an encrypted backup of the current database;
-4. atomically selects the previous digest;
-5. pulls/restarts application services **without** reverting database migrations;
-6. runs health, authenticated smoke, runtime and network audits;
-7. writes new release evidence.
+2. validates accepted current/previous digest evidence;
+3. verifies the live migration-ledger hash still matches that evidence;
+4. creates an encrypted backup of the current database;
+5. atomically selects the previous digest;
+6. pulls/restarts application services **without** reverting database migrations;
+7. runs health, authenticated smoke, runtime and network audits;
+8. writes new release evidence.
 
 If the previous application is not compatible with the current forward schema, rollback is not allowed; recovery must use a newer compatible image or an explicit disaster-restore procedure.
 

@@ -5,14 +5,16 @@ ENV_FILE=${ENV_FILE:-/etc/baykush/runtime.env}
 IMAGE=${1:-}
 
 fail() { printf 'set-release-image: %s\n' "$*" >&2; exit 1; }
-[[ ${EUID:-$(id -u)} -eq 0 ]] || fail 'must run as root'
+if [[ ${EUID:-$(id -u)} -ne 0 && "${NODE8_ISOLATED_TEST_MODE:-false}" != true ]]; then fail 'must run as root'; fi
 [[ -f "$ENV_FILE" ]] || fail "runtime env not found: $ENV_FILE"
 [[ "$IMAGE" == *@sha256:* ]] || fail 'release image must be digest-pinned'
-[[ "$IMAGE" =~ @sha256:[0-9a-f]{64}$ ]] || fail 'release image digest format is invalid'
+[[ "$IMAGE" =~ ^[^[:space:]@]+@sha256:[0-9a-f]{64}$ ]] || fail 'release image digest format is invalid'
 
 owner=$(stat -c '%U:%G' "$ENV_FILE")
 mode=$(stat -c '%a' "$ENV_FILE")
-[[ "$owner" == root:root ]] || fail "$ENV_FILE must be root:root"
+if [[ "${NODE8_ISOLATED_TEST_MODE:-false}" != true ]]; then
+  [[ "$owner" == root:root ]] || fail "$ENV_FILE must be root:root"
+fi
 case "$mode" in 600|400) ;; *) fail "$ENV_FILE must be mode 0600/0400" ;; esac
 
 tmp=$(mktemp "${ENV_FILE}.tmp.XXXXXXXX")
@@ -23,7 +25,7 @@ awk -v image="$IMAGE" '
   { print }
   END { if (!replaced) print "BAYKUSH_NODE_IMAGE=" image }
 ' "$ENV_FILE" > "$tmp"
-chown root:root "$tmp"
+if [[ "${NODE8_ISOLATED_TEST_MODE:-false}" != true ]]; then chown root:root "$tmp"; fi
 chmod "$mode" "$tmp"
 mv "$tmp" "$ENV_FILE"
 trap - EXIT

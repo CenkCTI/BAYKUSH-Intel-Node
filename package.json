@@ -33,6 +33,7 @@
     "test:node7-real": "tsx scripts/node7-real-upstream-acceptance.ts",
     "test:node8f-real": "node scripts/node8f-backup-restore-acceptance.mjs",
     "test:node8g": "vitest run tests/node8-ops.test.ts",
+    "test:node8h": "vitest run tests/node8-release-contract.test.ts",
     "node2g:status": "tsx scripts/node2g-status.ts",
     "node2g:report": "tsx scripts/node2g-report.ts",
     "node2g:export-node": "tsx scripts/node2g-export-node.ts",

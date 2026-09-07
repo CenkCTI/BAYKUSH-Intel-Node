@@ -16,7 +16,7 @@ set +a
 : "${BAYKUSH_NODE_IMAGE:?BAYKUSH_NODE_IMAGE is required}"
 : "${POSTGRES_USER:?POSTGRES_USER is required}"
 POSTGRES_DB=${POSTGRES_DB:-baykush}
-[[ "$BAYKUSH_NODE_IMAGE" =~ @sha256:[0-9a-f]{64}$ ]] || fail 'release evidence requires a digest-pinned image'
+[[ "$BAYKUSH_NODE_IMAGE" =~ ^[^[:space:]@]+@sha256:[0-9a-f]{64}$ ]] || fail 'release evidence requires a digest-pinned image'
 
 mkdir -p "$RELEASE_DIR/history"
 chmod 0700 "$RELEASE_DIR" "$RELEASE_DIR/history"
@@ -33,13 +33,15 @@ if [[ -f "$RELEASE_DIR/current.json" ]]; then
   previous_image=$(node -e 'const fs=require("fs");const p=JSON.parse(fs.readFileSync(process.argv[1],"utf8"));process.stdout.write(p.image??"")' "$RELEASE_DIR/current.json")
 fi
 
-ts=$(date -u +%Y%m%dT%H%M%SZ)
+ts=$(date -u +%Y%m%dT%H%M%S.%NZ)
 out="$RELEASE_DIR/history/release-${ts}.json"
-node - "$out" "$BAYKUSH_NODE_IMAGE" "$previous_image" "$ledger_sha" "$compose_sha" "$BACKUP_GATE_PASSED" <<'NODE'
+out_tmp=$(mktemp "$RELEASE_DIR/history/.release.XXXXXXXX.json")
+node - "$out_tmp" "$BAYKUSH_NODE_IMAGE" "$previous_image" "$ledger_sha" "$compose_sha" "$BACKUP_GATE_PASSED" <<'NODE'
 const fs = require('node:fs');
 const [out, image, previousImage, migrationLedgerSha256, composeSha256, backupGate] = process.argv.slice(2);
 const evidence = {
   schemaVersion: 'NODE8_RELEASE_EVIDENCE_V1',
+  result: 'ACCEPTED',
   accepted: true,
   deployedAt: new Date().toISOString(),
   image,
@@ -50,11 +52,12 @@ const evidence = {
   smokeAccepted: true,
   runtimeAuditAccepted: true,
   networkAuditAccepted: true,
-  containsSecrets: false,
+  audits: { authenticatedSmoke: 'PASS', runtime: 'PASS', network: 'PASS' },
 };
 fs.writeFileSync(out, JSON.stringify(evidence, null, 2) + '\n', { mode: 0o600 });
 NODE
-chmod 0600 "$out"
+chmod 0600 "$out_tmp"
+mv "$out_tmp" "$out"
 tmp="$RELEASE_DIR/current.json.tmp"
 cp "$out" "$tmp"
 chmod 0600 "$tmp"
