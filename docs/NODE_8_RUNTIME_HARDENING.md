@@ -43,8 +43,11 @@ The official PostgreSQL image is deliberately not forced into the common read-on
 - no-new-privileges;
 - `CapDrop=ALL`;
 - positive PID, memory and CPU limits.
+- a bounded, `noexec,nosuid,nodev` `/tmp` mount;
+- no unexpected writable mounts or Docker socket;
+- an empty effective capability set, verified from `/proc/1/status` rather than inferred only from Compose metadata.
 
-It verifies PostgreSQL resource bounds separately and intentionally treats the completed one-shot migration container as optional after deploy.
+It verifies Caddy separately, including that its effective set contains only `NET_BIND_SERVICE`. It verifies PostgreSQL resource bounds and lack of privileged/host-network mode separately, and intentionally treats the completed one-shot migration container as optional after deploy.
 
 ## Acceptance
 
