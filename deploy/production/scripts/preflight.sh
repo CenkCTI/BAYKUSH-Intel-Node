@@ -30,10 +30,12 @@ owner=$(stat -c '%U:%G' "$ENV_FILE")
 
 image=$(grep -E '^BAYKUSH_NODE_IMAGE=' "$ENV_FILE" | tail -n1 | cut -d= -f2- || true)
 hostname=$(grep -E '^NODE_HOSTNAME=' "$ENV_FILE" | tail -n1 | cut -d= -f2- || true)
+acme_email=$(grep -E '^ACME_EMAIL=' "$ENV_FILE" | tail -n1 | cut -d= -f2- || true)
 secret_dir=$(grep -E '^BAYKUSH_SECRET_DIR=' "$ENV_FILE" | tail -n1 | cut -d= -f2- || true)
 secret_gid=$(grep -E '^BAYKUSH_SECRET_GID=' "$ENV_FILE" | tail -n1 | cut -d= -f2- || true)
 [[ -n "$image" && "$image" != *REPLACE_ME* ]] || fail "BAYKUSH_NODE_IMAGE is not configured"
 [[ -n "$hostname" && "$hostname" != *.invalid ]] || fail "NODE_HOSTNAME is not configured"
+[[ -n "$acme_email" ]] || fail "ACME_EMAIL is not configured"
 [[ -n "$secret_dir" && -d "$secret_dir" ]] || fail "BAYKUSH_SECRET_DIR is missing or is not a directory"
 [[ "$secret_gid" =~ ^[0-9]+$ ]] || fail "BAYKUSH_SECRET_GID must be a numeric supplemental group id"
 
@@ -68,6 +70,27 @@ for role in api ingest projection stream recovery; do
     fi
   done
 done
+
+check_optional_provider() {
+  local host_var=$1
+  local container_var=$2
+  local expected_container_path=$3
+  local host_path container_path
+  host_path=$(grep -E "^${host_var}=" "$ENV_FILE" | tail -n1 | cut -d= -f2- || true)
+  container_path=$(grep -E "^${container_var}=" "$ENV_FILE" | tail -n1 | cut -d= -f2- || true)
+  if [[ -z "$host_path" && -z "$container_path" ]]; then return; fi
+  [[ -n "$host_path" && "$container_path" == "$expected_container_path" ]] \
+    || fail "$host_var and $container_var must be configured together with container path $expected_container_path"
+  [[ -f "$host_path" ]] || fail "$host_var is not a regular file: $host_path"
+  [[ $(stat -c '%u' "$host_path") == 0 ]] || fail "$host_var file must be owned by root"
+  [[ $(stat -c '%g' "$host_path") == "$secret_gid" ]] || fail "$host_var file group id must be $secret_gid"
+  [[ $(stat -c '%a' "$host_path") == 440 ]] || fail "$host_var file must be mode 0440"
+}
+
+check_optional_provider NVD_API_KEY_HOST_FILE NVD_API_KEY_FILE /run/secrets/providers/nvd_api_key
+check_optional_provider THREATFOX_AUTH_KEY_HOST_FILE THREATFOX_AUTH_KEY_FILE /run/secrets/providers/threatfox_auth_key
+check_optional_provider MALWAREBAZAAR_AUTH_KEY_HOST_FILE MALWAREBAZAAR_AUTH_KEY_FILE /run/secrets/providers/malwarebazaar_auth_key
+check_optional_provider IPINFO_LITE_TOKEN_HOST_FILE IPINFO_LITE_TOKEN_FILE /run/secrets/providers/ipinfo_lite_token
 
 case "$image" in
   *@sha256:*) ;;

@@ -48,7 +48,7 @@ jobs:
           npm run test:migration
           npm run test:node4-backfill
       - name: NODE-8C database role acceptance
-        run: node scripts/test-node8c-db-roles.mjs
+        run: node scripts/node8-db-role-acceptance.mjs
       - name: NODE-5A source admission acceptance
         run: npm run test:node5a
       - name: Runtime acceptance
@@ -109,7 +109,6 @@ jobs:
           BAYKUSH_SECRET_DIR: /tmp/baykush-ci-secrets
           POSTGRES_DB: baykush
           POSTGRES_USER: baykush
-          NVD_API_KEY_FILE: /run/secrets/baykush/nvd_api_key
           API_RATE_LIMIT_WINDOW_MS: "60000"
           API_RATE_LIMIT_STANDARD: "120"
           API_RATE_LIMIT_EXPENSIVE: "30"
