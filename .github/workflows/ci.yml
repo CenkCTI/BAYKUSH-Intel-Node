@@ -117,6 +117,7 @@ jobs:
           bash -n deploy/production/scripts/deploy.sh
           bash -n deploy/production/scripts/smoke-test.sh
           bash -n deploy/production/scripts/provision-db-roles.sh
+          bash -n deploy/production/scripts/network-audit.sh
           sh -n scripts/runtime-with-secrets.sh
           docker compose -f deploy/production/compose.yml config --format json > /tmp/node8-compose.json
           node scripts/node8-compose-acceptance.mjs /tmp/node8-compose.json
