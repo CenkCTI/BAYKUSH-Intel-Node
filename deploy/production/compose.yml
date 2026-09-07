@@ -49,11 +49,12 @@ services:
     pids_limit: 96
     mem_limit: ${CADDY_MEM_LIMIT:-192m}
     cpus: ${CADDY_CPUS:-0.25}
+    stop_grace_period: 30s
     tmpfs:
       - /tmp:rw,noexec,nosuid,nodev,size=32m
     environment:
       NODE_HOSTNAME: ${NODE_HOSTNAME:?NODE_HOSTNAME is required}
-      ACME_EMAIL: ${ACME_EMAIL:-}
+      ACME_EMAIL: ${ACME_EMAIL:?ACME_EMAIL is required}
     ports:
       - "80:80"
       - "443:443"

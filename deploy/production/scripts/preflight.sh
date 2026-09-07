@@ -30,10 +30,12 @@ owner=$(stat -c '%U:%G' "$ENV_FILE")
 
 image=$(grep -E '^BAYKUSH_NODE_IMAGE=' "$ENV_FILE" | tail -n1 | cut -d= -f2- || true)
 hostname=$(grep -E '^NODE_HOSTNAME=' "$ENV_FILE" | tail -n1 | cut -d= -f2- || true)
+acme_email=$(grep -E '^ACME_EMAIL=' "$ENV_FILE" | tail -n1 | cut -d= -f2- || true)
 secret_dir=$(grep -E '^BAYKUSH_SECRET_DIR=' "$ENV_FILE" | tail -n1 | cut -d= -f2- || true)
 secret_gid=$(grep -E '^BAYKUSH_SECRET_GID=' "$ENV_FILE" | tail -n1 | cut -d= -f2- || true)
 [[ -n "$image" && "$image" != *REPLACE_ME* ]] || fail "BAYKUSH_NODE_IMAGE is not configured"
 [[ -n "$hostname" && "$hostname" != *.invalid ]] || fail "NODE_HOSTNAME is not configured"
+[[ -n "$acme_email" ]] || fail "ACME_EMAIL is not configured"
 [[ -n "$secret_dir" && -d "$secret_dir" ]] || fail "BAYKUSH_SECRET_DIR is missing or is not a directory"
 [[ "$secret_gid" =~ ^[0-9]+$ ]] || fail "BAYKUSH_SECRET_GID must be a numeric supplemental group id"
 
