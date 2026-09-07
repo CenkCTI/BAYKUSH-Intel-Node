@@ -49,6 +49,8 @@ jobs:
           npm run test:node4-backfill
       - name: NODE-8C database role acceptance
         run: node scripts/node8-db-role-acceptance.mjs
+      - name: NODE-8G operations health acceptance
+        run: npm run test:node8g
       - name: NODE-5A source admission acceptance
         run: npm run test:node5a
       - name: Runtime acceptance
@@ -118,6 +120,7 @@ jobs:
           bash -n deploy/production/scripts/smoke-test.sh
           bash -n deploy/production/scripts/provision-db-roles.sh
           bash -n deploy/production/scripts/network-audit.sh
+          bash -n deploy/production/scripts/ops-snapshot.sh
           sh -n scripts/runtime-with-secrets.sh
           docker compose -f deploy/production/compose.yml config --format json > /tmp/node8-compose.json
           node scripts/node8-compose-acceptance.mjs /tmp/node8-compose.json
