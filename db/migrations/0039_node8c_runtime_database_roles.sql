@@ -25,6 +25,35 @@ BEGIN
 END
 $$;
 
+DO $$
+DECLARE
+  capability text;
+  inherited text;
+BEGIN
+  FOREACH capability IN ARRAY ARRAY[
+    'baykush_api',
+    'baykush_ingest',
+    'baykush_projection',
+    'baykush_stream',
+    'baykush_recovery'
+  ] LOOP
+    EXECUTE format(
+      'ALTER ROLE %I NOLOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION INHERIT',
+      capability
+    );
+    FOR inherited IN
+      SELECT parent.rolname
+      FROM pg_auth_members membership
+      JOIN pg_roles parent ON parent.oid = membership.roleid
+      JOIN pg_roles member ON member.oid = membership.member
+      WHERE member.rolname = capability
+    LOOP
+      EXECUTE format('REVOKE %I FROM %I', inherited, capability);
+    END LOOP;
+  END LOOP;
+END
+$$;
+
 REVOKE CREATE ON SCHEMA public FROM PUBLIC;
 REVOKE CREATE ON SCHEMA public
   FROM baykush_api, baykush_ingest, baykush_projection, baykush_stream, baykush_recovery;
@@ -51,10 +80,10 @@ GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public
 DO $$
 DECLARE
   item record;
-  ingest_pattern text := '^(source_|collection_|raw_source_records$|canonical_evidence_records$|normalization_|backfill_|entity_history_|runtime_heartbeats$)';
-  projection_pattern text := '^(measurement_|source_coverage_|source_acquisition_|entity_activity_|convergence_|node7_|discovery_|geographic_|runtime_heartbeats$)';
-  stream_pattern text := '^(routing_|stream_|runtime_heartbeats$)';
-  recovery_pattern text := '^(recovery_|routing_|stream_|runtime_heartbeats$)';
+  ingest_pattern text := '^(source_|collection_|raw_source_records$|canonical_evidence_records$|normalization_|historical_backfill_|runtime_heartbeats$)';
+  projection_pattern text := '^(measurement_|source_coverage_|source_acquisition_|coverage_reconciliation_|entity_(observation|history|activity)_|convergence_|node7_|discovery_|geograph(ic|y)_|historical_backfill_requests$|routing_minute_bucket_|routing_measurement_dirty_minutes$|runtime_heartbeats$)';
+  stream_pattern text := '^(stream_(capture_profile|sessions|session_events|segment|coverage_interval|recovery_requests|recovery_segments|retention_runs)|routing_segment_|routing_measurement_dirty_minutes$|runtime_heartbeats$)';
+  recovery_pattern text := '^(stream_recovery_|routing_(minute_bucket|recovery_minute|measurement_dirty)_|runtime_heartbeats$)';
 BEGIN
   FOR item IN
     SELECT schemaname, tablename
@@ -78,24 +107,16 @@ BEGIN
 END
 $$;
 
--- Deletion is an operational retention/recovery capability, not a normal
--- ingestion/projection capability. Keep it limited to routing raw/recovery
--- families; canonical intelligence evidence is never granted DELETE here.
-DO $$
-DECLARE
-  item record;
-BEGIN
-  FOR item IN
-    SELECT schemaname, tablename
-    FROM pg_tables
-    WHERE schemaname = 'public'
-      AND tablename ~ '^(stream_|recovery_)'
-    ORDER BY tablename
-  LOOP
-    EXECUTE format('GRANT DELETE ON TABLE %I.%I TO baykush_recovery', item.schemaname, item.tablename);
-  END LOOP;
-END
-$$;
+-- DELETE is limited to the exact transient/work-queue surfaces whose owning
+-- runtime executes retention or consumes dirty work. Immutable evidence and
+-- revision tables never receive DELETE through these capability roles.
+GRANT DELETE ON TABLE
+  measurement_dirty_buckets,
+  source_coverage_dirty_buckets,
+  routing_measurement_dirty_minutes,
+  entity_history_heads
+TO baykush_projection;
+GRANT DELETE ON TABLE stream_segment_payloads TO baykush_stream;
 
 -- Future migrations must grant new table families explicitly. We intentionally
 -- avoid ALTER DEFAULT PRIVILEGES because silent future privilege expansion would
