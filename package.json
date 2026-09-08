@@ -34,6 +34,8 @@
     "test:node8f-real": "node scripts/node8f-backup-restore-acceptance.mjs",
     "test:node8g": "vitest run tests/node8-ops.test.ts",
     "test:node8h": "vitest run tests/node8-release-contract.test.ts",
+    "test:node8i": "vitest run tests/node8i-resilience.test.ts && node scripts/validate-node8-fault-matrix.mjs",
+    "test:node8i:aggregate": "node scripts/node8i-acceptance.mjs",
     "node2g:status": "tsx scripts/node2g-status.ts",
     "node2g:report": "tsx scripts/node2g-report.ts",
     "node2g:export-node": "tsx scripts/node2g-export-node.ts",

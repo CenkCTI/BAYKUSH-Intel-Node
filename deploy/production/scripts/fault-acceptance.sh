@@ -45,13 +45,36 @@ wait_api() {
   return 1
 }
 
+compose() { docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" "$@"; }
+
+durable_snapshot() {
+  compose exec -T postgres psql -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$POSTGRES_DB" -Atc \
+    "SELECT (SELECT count(*) FROM raw_source_records)||'|'||(SELECT count(*) FROM canonical_evidence_records)||'|'||(SELECT count(*) FROM normalization_jobs)||'|'||(SELECT count(*) FROM source_checkpoints);"
+}
+
+assert_durable_baseline() {
+  local current field before after
+  current=$(durable_snapshot) || return 1
+  for field in 1 2 3 4; do
+    before=$(cut -d'|' -f"$field" <<<"$BASELINE")
+    after=$(cut -d'|' -f"$field" <<<"$current")
+    [[ "$after" -ge "$before" ]] || return 1
+  done
+}
+
 run_restart() {
   local id=$1 service=$2
-  printf 'fault-acceptance: restarting %s for %s\n' "$service" "$id"
-  if docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" restart "$service" >/dev/null && wait_api; then
-    append_result "$id" PASS "service restart recovered and API returned healthy"
+  printf 'fault-acceptance: stopping and starting %s for %s\n' "$service" "$id"
+  if ! compose stop -t 10 "$service" >/dev/null; then
+    append_result "$id" FAIL "service could not be stopped for bounded fault injection"; return 1
+  fi
+  if compose ps --status running --services | grep -Fxq "$service"; then
+    append_result "$id" FAIL "service remained running after injected stop"; return 1
+  fi
+  if compose start "$service" >/dev/null && wait_api && assert_durable_baseline; then
+    append_result "$id" PASS "unavailability observed; service and API recovered; baseline raw/canonical/provenance/checkpoint rows remain"
   else
-    append_result "$id" FAIL "service restart did not recover within bounded health window"
+    append_result "$id" FAIL "service recovery or durable semantic baseline verification failed"
     return 1
   fi
 }
@@ -59,7 +82,9 @@ run_restart() {
 # SAFE mode intentionally limits itself to reversible service restarts. FULL is
 # still not permission to simulate VM/network/disk destruction automatically;
 # those scenarios remain manual real-host evidence by design.
+BASELINE=$(durable_snapshot) || fail 'could not capture durable semantic baseline'
 run_restart POSTGRES_RESTART postgres
+run_restart API_RESTART api
 run_restart WORKER_CRASH worker
 run_restart DISCOVERY_CRASH discovery
 run_restart STREAM_WORKER_CRASH stream-worker
