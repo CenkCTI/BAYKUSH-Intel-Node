@@ -20,8 +20,7 @@ SELECT
   instance_id,
   heartbeat_at,
   GREATEST(0, EXTRACT(EPOCH FROM (now() - heartbeat_at)))::bigint AS heartbeat_age_seconds,
-  (heartbeat_at >= now() - interval '60 seconds') AS fresh,
-  metadata
+  (heartbeat_at >= now() - interval '60 seconds') AS fresh
 FROM runtime_heartbeats;
 
 -- 0039 intentionally avoids default privileges, so every new operational object

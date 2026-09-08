@@ -1,15 +1,14 @@
 import { config } from "../config.js";
 import { pool } from "../db/pool.js";
 import { startHeartbeatLoop } from "../runtime/heartbeat.js";
+import { apiHeartbeatMode } from "./ops-api.js";
 import { createApiServer } from "./server.js";
 
 const server = createApiServer();
 // Production API uses the NODE-8C read-only database principal. In that mode the
 // API is observed by active probes rather than by granting a write exception to
 // runtime_heartbeats. Development can keep the historical DB heartbeat behavior.
-const probeOnlyHeartbeat = process.env.API_HEARTBEAT_MODE === "PROBE_ONLY"
-  || (process.env.API_HEARTBEAT_MODE === undefined && process.env.NODE_ENV === "production");
-const stopHeartbeat = probeOnlyHeartbeat
+const stopHeartbeat = apiHeartbeatMode() === "PROBE_ONLY"
   ? () => {}
   : startHeartbeatLoop("API", { port: config.port });
 

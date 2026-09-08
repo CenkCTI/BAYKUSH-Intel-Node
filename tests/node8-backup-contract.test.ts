@@ -14,6 +14,13 @@ describe("NODE-8 backup and recovery contract", () => {
     expect(backup).toContain("pg_dump");
     expect(backup).toContain("NODE8_BACKUP_MANIFEST_V1");
     expect(backup).toContain("includesSecrets: false");
+    expect(backup).toContain("dumpFormat: 'postgresql-custom'");
+    expect(backup).toContain("database: { name:");
+    expect(backup).toContain("another backup is already running");
+    expect(backup).toContain('--keep-last "${BACKUP_KEEP_LAST:-8}"');
+    expect(backup).toContain('--keep-daily "${BACKUP_KEEP_DAILY:-7}"');
+    expect(backup).toContain('--keep-weekly "${BACKUP_KEEP_WEEKLY:-4}"');
+    expect(backup).toContain('--keep-monthly "${BACKUP_KEEP_MONTHLY:-6}"');
   });
 
   it("requires explicit restore confirmation and protects the production database", () => {
@@ -22,6 +29,11 @@ describe("NODE-8 backup and recovery contract", () => {
     expect(restore).toContain("NODE8_RESTORE_ACCEPTANCE_V1");
     expect(restore).toContain("dump checksum mismatch");
     expect(restore).toContain("migration ledger checksum mismatch");
+    expect(restore).toContain("restored migration ledger does not match backup ledger");
+    expect(restore).toContain("dataFingerprintsVerified: true");
+    expect(restore).toContain("provenanceVerified: true");
+    expect(restore).toContain("immutableRevisionGuardsVerified: true");
+    expect(restore).toContain("production restore repository must be off-host");
   });
 
   it("schedules a persistent six-hour backup cadence", () => {

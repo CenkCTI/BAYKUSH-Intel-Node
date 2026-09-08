@@ -20,8 +20,6 @@ x-node-image: &node-image
     - backend
   group_add:
     - "${BAYKUSH_SECRET_GID:-2000}"
-  volumes:
-    - ${BAYKUSH_SECRET_DIR:?BAYKUSH_SECRET_DIR is required}:/run/secrets/baykush:ro
   logging: &default-logging
     driver: json-file
     options:
@@ -51,11 +49,12 @@ services:
     pids_limit: 96
     mem_limit: ${CADDY_MEM_LIMIT:-192m}
     cpus: ${CADDY_CPUS:-0.25}
+    stop_grace_period: 30s
     tmpfs:
       - /tmp:rw,noexec,nosuid,nodev,size=32m
     environment:
       NODE_HOSTNAME: ${NODE_HOSTNAME:?NODE_HOSTNAME is required}
-      ACME_EMAIL: ${ACME_EMAIL:-}
+      ACME_EMAIL: ${ACME_EMAIL:?ACME_EMAIL is required}
     ports:
       - "80:80"
       - "443:443"
@@ -87,7 +86,7 @@ services:
       POSTGRES_PASSWORD_FILE: /run/secrets/baykush/postgres_password
     volumes:
       - baykush_pgdata:/var/lib/postgresql/data
-      - ${BAYKUSH_SECRET_DIR}:/run/secrets/baykush:ro
+      - ${BAYKUSH_SECRET_DIR}/postgres_password:/run/secrets/baykush/postgres_password:ro
     networks:
       - backend
     healthcheck:
@@ -106,6 +105,8 @@ services:
     environment:
       <<: *node-env
       DATABASE_URL_FILE: /run/secrets/baykush/db_migrator_url
+    volumes:
+      - ${BAYKUSH_SECRET_DIR}/db_migrator_url:/run/secrets/baykush/db_migrator_url:ro
     depends_on:
       postgres:
         condition: service_healthy
@@ -120,10 +121,14 @@ services:
       DATABASE_URL_FILE: /run/secrets/baykush/db_api_url
       PORT: "8080"
       NODE_INSTANCE_ID: api-1
+      API_HEARTBEAT_MODE: PROBE_ONLY
       BAYKUSH_NODE_API_CREDENTIALS_FILE: /run/secrets/baykush/api_credentials.json
       API_RATE_LIMIT_WINDOW_MS: ${API_RATE_LIMIT_WINDOW_MS:-60000}
       API_RATE_LIMIT_STANDARD: ${API_RATE_LIMIT_STANDARD:-120}
       API_RATE_LIMIT_EXPENSIVE: ${API_RATE_LIMIT_EXPENSIVE:-30}
+    volumes:
+      - ${BAYKUSH_SECRET_DIR}/db_api_url:/run/secrets/baykush/db_api_url:ro
+      - ${BAYKUSH_SECRET_DIR}/api_credentials.json:/run/secrets/baykush/api_credentials.json:ro
     expose:
       - "8080"
     networks:
@@ -146,6 +151,8 @@ services:
       <<: *node-env
       DATABASE_URL_FILE: /run/secrets/baykush/db_ingest_url
       NODE_INSTANCE_ID: scheduler-1
+    volumes:
+      - ${BAYKUSH_SECRET_DIR}/db_ingest_url:/run/secrets/baykush/db_ingest_url:ro
     depends_on:
       migrate:
         condition: service_completed_successfully
@@ -162,6 +169,11 @@ services:
       NVD_API_KEY_FILE: ${NVD_API_KEY_FILE:-}
       THREATFOX_AUTH_KEY_FILE: ${THREATFOX_AUTH_KEY_FILE:-}
       MALWAREBAZAAR_AUTH_KEY_FILE: ${MALWAREBAZAAR_AUTH_KEY_FILE:-}
+    volumes:
+      - ${BAYKUSH_SECRET_DIR}/db_ingest_url:/run/secrets/baykush/db_ingest_url:ro
+      - ${NVD_API_KEY_HOST_FILE:-/dev/null}:/run/secrets/providers/nvd_api_key:ro
+      - ${THREATFOX_AUTH_KEY_HOST_FILE:-/dev/null}:/run/secrets/providers/threatfox_auth_key:ro
+      - ${MALWAREBAZAAR_AUTH_KEY_HOST_FILE:-/dev/null}:/run/secrets/providers/malwarebazaar_auth_key:ro
     depends_on:
       migrate:
         condition: service_completed_successfully
@@ -176,6 +188,9 @@ services:
       DATABASE_URL_FILE: /run/secrets/baykush/db_ingest_url
       NODE_INSTANCE_ID: backfill-1
       NVD_API_KEY_FILE: ${NVD_API_KEY_FILE:-}
+    volumes:
+      - ${BAYKUSH_SECRET_DIR}/db_ingest_url:/run/secrets/baykush/db_ingest_url:ro
+      - ${NVD_API_KEY_HOST_FILE:-/dev/null}:/run/secrets/providers/nvd_api_key:ro
     depends_on:
       migrate:
         condition: service_completed_successfully
@@ -189,6 +204,8 @@ services:
       <<: *node-env
       DATABASE_URL_FILE: /run/secrets/baykush/db_ingest_url
       NODE_INSTANCE_ID: normalizer-1
+    volumes:
+      - ${BAYKUSH_SECRET_DIR}/db_ingest_url:/run/secrets/baykush/db_ingest_url:ro
     depends_on:
       migrate:
         condition: service_completed_successfully
@@ -202,6 +219,8 @@ services:
       <<: *node-env
       DATABASE_URL_FILE: /run/secrets/baykush/db_projection_url
       NODE_INSTANCE_ID: measurement-1
+    volumes:
+      - ${BAYKUSH_SECRET_DIR}/db_projection_url:/run/secrets/baykush/db_projection_url:ro
     depends_on:
       migrate:
         condition: service_completed_successfully
@@ -218,6 +237,9 @@ services:
       IPINFO_LITE_TOKEN_FILE: ${IPINFO_LITE_TOKEN_FILE:-}
       NODE7_GEO_HTTP_TIMEOUT_MS: ${NODE7_GEO_HTTP_TIMEOUT_MS:-8000}
       NODE7_GEO_REFRESH_HOURS: ${NODE7_GEO_REFRESH_HOURS:-24}
+    volumes:
+      - ${BAYKUSH_SECRET_DIR}/db_projection_url:/run/secrets/baykush/db_projection_url:ro
+      - ${IPINFO_LITE_TOKEN_HOST_FILE:-/dev/null}:/run/secrets/providers/ipinfo_lite_token:ro
     depends_on:
       migrate:
         condition: service_completed_successfully
@@ -237,6 +259,8 @@ services:
       STREAM_QUEUE_MAX_BYTES: ${STREAM_QUEUE_MAX_BYTES:-67108864}
       STREAM_SEGMENT_MAX_MESSAGES: ${STREAM_SEGMENT_MAX_MESSAGES:-5000}
       STREAM_SEGMENT_MAX_BYTES: ${STREAM_SEGMENT_MAX_BYTES:-4194304}
+    volumes:
+      - ${BAYKUSH_SECRET_DIR}/db_stream_url:/run/secrets/baykush/db_stream_url:ro
     depends_on:
       migrate:
         condition: service_completed_successfully
@@ -264,7 +288,7 @@ services:
       RECOVERY_DECODER_MAX_RECORDS: ${RECOVERY_DECODER_MAX_RECORDS:-10000000}
       RECOVERY_PAUSE_ON_STREAM_UNHEALTHY: ${RECOVERY_PAUSE_ON_STREAM_UNHEALTHY:-true}
     volumes:
-      - ${BAYKUSH_SECRET_DIR}:/run/secrets/baykush:ro
+      - ${BAYKUSH_SECRET_DIR}/db_recovery_url:/run/secrets/baykush/db_recovery_url:ro
       - baykush_recovery:/var/lib/baykush/recovery
     depends_on:
       migrate:

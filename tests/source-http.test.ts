@@ -94,6 +94,43 @@ describe("source HTTP transport", () => {
     expect(called).toBe(false);
   });
 
+  it("rejects unexpected provider path changes before transport", async () => {
+    let called = false;
+    const fakeFetch = (async () => {
+      called = true;
+      return new Response("{}");
+    }) as typeof fetch;
+    await expect(request(fakeFetch, { url: new URL("https://example.test/other.json") })).rejects.toMatchObject({
+      code: "SCHEMA_ERROR",
+      retryable: false,
+    });
+    expect(called).toBe(false);
+  });
+
+  it.each([
+    ["cross-host", "https://attacker.test/feed.json"],
+    ["HTTP downgrade", "http://example.test/feed.json"],
+    ["unexpected path", "https://example.test/other.json"],
+  ])("does not follow a %s redirect", async (_kind, location) => {
+    let calls = 0;
+    let observedRedirect: string | undefined;
+    let observedAuthorization: string | null = null;
+    const fakeFetch = (async (_input: string | URL | Request, init?: RequestInit) => {
+      calls += 1;
+      observedRedirect = init?.redirect;
+      observedAuthorization = new Headers(init?.headers).get("authorization");
+      return new Response(null, { status: 302, headers: { location } });
+    }) as typeof fetch;
+
+    await expect(request(fakeFetch, {
+      headers: { authorization: "Bearer provider-secret" },
+      redactValues: ["provider-secret"],
+    })).rejects.toMatchObject({ code: "PROVIDER_ERROR", retryable: false });
+    expect(observedRedirect).toBe("manual");
+    expect(observedAuthorization).toBe("Bearer provider-secret");
+    expect(calls).toBe(1);
+  });
+
   it("redacts exact secret values from provider diagnostic headers", async () => {
     const secret = "never-log-me";
     const fakeFetch = (async () => new Response("unauthorized", {
