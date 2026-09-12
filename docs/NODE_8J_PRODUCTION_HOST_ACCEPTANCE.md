@@ -1,8 +1,8 @@
-# NODE-8J — Oracle production acceptance and final closure tooling
+# NODE-8J — Production host acceptance and final closure tooling
 
 ## Status and scope
 
-NODE-8J supplies provider-independent host preflight, bounded manual evidence recording, and the final fail-closed NODE-8 evidence aggregator. It does not deploy to Oracle and requires no Oracle SDK or CLI. **CI green != production accepted. NODE-8I automated acceptance != Oracle host acceptance. NODE-8J remains `MANUAL_PENDING` until every real-host gate passes.**
+NODE-8J supplies provider-independent host preflight, bounded manual evidence recording, and the final fail-closed NODE-8 evidence aggregator. AWS EC2 is the first actual production candidate host, but the runtime and acceptance contract remain provider-independent. Oracle was the initially planned target; AWS, Oracle, Hetzner, or another compatible Linux/x86_64 host can satisfy the same contract. No AWS CLI, Oracle CLI, cloud SDK, IAM API, or provider-specific runtime dependency is required. **CI green != production accepted. NODE-8I automated acceptance != real production-host acceptance. NODE-8J remains `MANUAL_PENDING` until every real-host gate passes.**
 
 The tooling consumes NODE-8A packaging, NODE-8B file-backed secrets/scoped auth, NODE-8C database roles, NODE-8D runtime hardening, NODE-8E network controls, NODE-8F backup/restore, NODE-8G operations evidence, NODE-8H release evidence, and NODE-8I resilience evidence. Those controls remain authoritative.
 
@@ -17,7 +17,7 @@ Never use these procedures to delete volumes, rewrite migration history, expose 
 1. Provision DNS, firewall/security-list ingress for 80/443 only, Docker/systemd, directories and file-backed secrets according to `NODE_8_DEPLOYMENT_CONTRACT.md`.
    Install `scripts/node8j-evidence.mjs`, `scripts/node8j-final-acceptance.mjs`, and `scripts/node8j-record-manual.mjs` beside the production shell scripts under `/opt/baykush-node/scripts`.
 2. Select the immutable `repository@sha256:<64 hex>` release and install the production bundle.
-3. Run `oracle-host-preflight.sh` before deployment; resolve every `FAIL` and manually adjudicate every `MANUAL_REVIEW`. Save its `NODE8_ORACLE_HOST_PREFLIGHT_V1` JSON without editing it.
+3. Run `host-preflight.sh` before deployment; resolve every `FAIL` and manually adjudicate every `MANUAL_REVIEW`. Save its `NODE8_HOST_PREFLIGHT_V1` JSON without editing it and confirm `providerIndependent: true`. The deprecated `oracle-host-preflight.sh` wrapper delegates to this canonical script.
 4. Run the NODE-8H deploy transaction. Preserve accepted release, backup, runtime and network evidence.
 5. Execute the real-host matrix below and record each scenario.
 6. Obtain separate CİTEM cutover evidence, then run `final-acceptance.sh`.
@@ -26,13 +26,13 @@ Preflight is read-only: it identifies Linux/OS/architecture, privilege readiness
 
 ## Real-host acceptance matrix
 
-The final schema has 21 mandatory gates: Oracle preflight; exact deployed digest; Caddy HTTPS; intended ingress; no public 5432; no public 8080; secret modes; NODE-8D runtime audit; network audit; scoped API auth; DB least privilege; real encrypted off-host backup; replacement-host restore; VM restart; Docker-daemon restart; Internet outage; backup-target outage; disk pressure; safe service restarts; bounded host load; and CİTEM cutover.
+The final schema has 21 mandatory gates: provider-independent host preflight; exact deployed digest; Caddy HTTPS; intended ingress; no public 5432; no public 8080; secret modes; NODE-8D runtime audit; network audit; scoped API auth; DB least privilege; real encrypted off-host backup; replacement-host restore; VM restart; Docker-daemon restart; Internet outage; backup-target outage; disk pressure; safe service restarts; bounded host load; and CİTEM cutover.
 
 The strict recorder scenarios are `VM_RESTART`, `DOCKER_DAEMON_RESTART`, `INTERNET_OUTAGE`, `BACKUP_TARGET_OUTAGE`, `DISK_PRESSURE`, `RESTORE_DRILL`, `SAFE_SERVICE_RESTARTS`, `BOUNDED_HOST_LOAD`, `CITEM_CUTOVER`, `TLS_NETWORK_ACCEPTANCE`, `SECURITY_BOUNDARIES`, and `OFFHOST_BACKUP`. Example:
 
 ```sh
 sudo NODE8J_SCENARIO=VM_RESTART NODE8J_RESULT=PASS \
-  NODE8J_HOST_ID=oracle-node-prod-01 \
+  NODE8J_HOST_ID=baykush-node-prod-01 \
   NODE8J_RELEASE_IMAGE='ghcr.io/example/node@sha256:…' \
   NODE8J_OPERATOR_NOTE='scheduled reboot; durable checks completed' \
   NODE8J_EVIDENCE_DIR=/var/lib/baykush/acceptance/manual \
@@ -57,7 +57,7 @@ Optional colon-separated `NODE8J_REFERENCE_FILES` are recorded only by basename 
 
 ## TLS, security, and CİTEM evidence
 
-From an external probe verify the certificate and HTTPS endpoint through Caddy, expected 80/443 ingress, no reachable 5432/8080, and no unexpected public service ports. Do not hardcode Oracle IP ranges. On-host rerun runtime/network audits, auth negative/scope tests, DB-role acceptance, secret ownership/mode checks, and bind all evidence to the deployed digest.
+From an external probe verify the certificate and HTTPS endpoint through Caddy, expected 80/443 ingress, no reachable 5432/8080, and no unexpected public service ports. Do not hardcode cloud-provider IP ranges. On-host rerun runtime/network audits, auth negative/scope tests, DB-role acceptance, secret ownership/mode checks, and bind all evidence to the deployed digest.
 
 CİTEM is a separate repository and is not changed by NODE-8J. It must emit `CITEM_NODE8_CUTOVER_EVIDENCE_V1` with `result: PASS`, the exact release digest, and booleans proving: server-to-server HTTPS; token server-only and absent from browsers; least intended scope; real Node data observed; Node unavailability rendered explicit degraded/unknown and never zero/no activity; no ability to mutate canonical truth; safe authentication failure; and a working end-to-end read path. This evidence plus the `CITEM_CUTOVER` manual record is mandatory.
 

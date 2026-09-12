@@ -14,7 +14,7 @@ Initial acceptance target:
 - persistent host storage;
 - cloud/host firewall controls.
 
-Oracle Cloud is the first real-host target, but no Oracle-specific runtime dependency is used.
+AWS EC2 is the first actual production candidate host. The runtime and acceptance contract remain provider-independent: AWS, Oracle, Hetzner, or another compatible Linux/x86_64 host can satisfy the same contract. No cloud-provider CLI, SDK, IAM API, or provider-specific runtime dependency is required.
 
 ## Required network policy
 
@@ -103,13 +103,23 @@ ghcr.io/cenkcti/baykush-intel-node@sha256:<digest>
 
 ## Preflight
 
-Run:
+Before deployment, run the canonical NODE-8J production-host preflight:
+
+```text
+sudo bash /opt/baykush-node/scripts/host-preflight.sh
+```
+
+It emits `NODE8_HOST_PREFLIGHT_V1` evidence with `providerIndependent: true`. The deprecated `oracle-host-preflight.sh` entry point delegates to this canonical script and does not define a separate evidence contract.
+
+Then run the existing deployment preflight:
 
 ```text
 sudo bash /opt/baykush-node/scripts/preflight.sh
 ```
 
 The preflight rejects missing prerequisites, unsafe runtime-env or secret permissions/ownership, missing required secrets, unconfigured image/hostname, invalid Compose and unexpected host-published service ports.
+
+CI green validates the contract but is not production acceptance. Until evidence is collected on the real production host, `NODE8_PRODUCTION_ACCEPTANCE_V1` remains `MANUAL_PENDING`.
 
 ## Deploy
 
