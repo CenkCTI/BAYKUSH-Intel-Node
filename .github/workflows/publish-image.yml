@@ -2,7 +2,7 @@ name: Publish NODE image
 
 on:
   push:
-    branches: [main]
+    branches: [main, agent/node8j-provider-neutral-host-acceptance]
   workflow_dispatch:
 
 permissions:
@@ -38,7 +38,7 @@ jobs:
           push: true
           tags: |
             ghcr.io/cenkcti/baykush-intel-node:${{ github.sha }}
-            ghcr.io/cenkcti/baykush-intel-node:main
+            ${{ github.ref == 'refs/heads/main' && 'ghcr.io/cenkcti/baykush-intel-node:main' || '' }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
           provenance: mode=max
