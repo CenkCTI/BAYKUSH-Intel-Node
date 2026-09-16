@@ -116,7 +116,7 @@ sudo bash /opt/baykush-node/scripts/deploy.sh
 NODE-8H extends this script with mandatory pre-deploy backup/release evidence. The ordering contract is already fixed:
 
 ```text
-preflight -> pull -> PostgreSQL -> migrate -> provision runtime roles -> services -> health -> authenticated smoke
+lock -> preflight/digest -> durable-state detection -> pull -> PostgreSQL -> required verified off-host backup -> migrate -> provision runtime roles -> services -> health -> authenticated smoke -> runtime audit -> network audit -> accepted evidence
 ```
 
 ## API credential rotation
