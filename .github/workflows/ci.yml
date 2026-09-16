@@ -55,6 +55,8 @@ jobs:
         run: npm run test:node8h
       - name: NODE-8I deterministic fault, provider, auth, and load acceptance
         run: npm run test:node8i
+      - name: NODE-8J deterministic final acceptance contract
+        run: npm run test:node8j
       - name: NODE-5A source admission acceptance
         run: npm run test:node5a
       - name: Runtime acceptance
@@ -128,6 +130,9 @@ jobs:
           bash -n deploy/production/scripts/provision-db-roles.sh
           bash -n deploy/production/scripts/network-audit.sh
           bash -n deploy/production/scripts/ops-snapshot.sh
+          bash -n deploy/production/scripts/oracle-host-preflight.sh
+          bash -n deploy/production/scripts/record-manual-acceptance.sh
+          bash -n deploy/production/scripts/final-acceptance.sh
           sh -n scripts/runtime-with-secrets.sh
           docker compose -f deploy/production/compose.yml config --format json > /tmp/node8-compose.json
           node scripts/node8-compose-acceptance.mjs /tmp/node8-compose.json

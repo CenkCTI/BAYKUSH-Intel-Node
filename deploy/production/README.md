@@ -38,6 +38,12 @@ Copy the contents of this directory to `/opt/baykush-node`:
   scripts/
 ```
 
+Install the three NODE-8J JavaScript tools beside the production shell scripts:
+
+```sh
+sudo install -m 0755 scripts/node8j-{evidence,final-acceptance,record-manual}.mjs /opt/baykush-node/scripts/
+```
+
 Copy `env.example` to `/etc/baykush/runtime.env`, populate only paths/non-secret configuration, then enforce `root:root` mode `0600`.
 
 ## Provision host-private secrets
