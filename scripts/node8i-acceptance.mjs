@@ -27,7 +27,7 @@ const evidence = {
   schemaVersion: "NODE8I_RESILIENCE_ACCEPTANCE_V1", result: failed ? "FAILED" : "MANUAL_PENDING",
   automatedAccepted: !failed, fullyAccepted: false, observedAt: new Date().toISOString(), checks, manualScenarios,
   semantics: matrix.semantics,
-  note: "Local/CI automated acceptance is not Oracle real-host acceptance; manual scenarios remain for NODE-8J.",
+  note: "Local/CI automated acceptance is not real production-host acceptance; manual scenarios remain for NODE-8J.",
 };
 process.stdout.write(`${JSON.stringify(evidence, null, 2)}\n`);
 if (failed) process.exitCode = 1;

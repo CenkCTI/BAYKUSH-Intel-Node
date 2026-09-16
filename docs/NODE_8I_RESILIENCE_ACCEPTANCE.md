@@ -48,4 +48,4 @@ node scripts/node8-load-acceptance.mjs > node8-load-evidence.json
 
 `scripts/node8i-acceptance.mjs` emits `NODE8I_RESILIENCE_ACCEPTANCE_V1` and distinguishes `AUTOMATED_ACCEPTED`, `MANUAL_PENDING`, `FAILED`, and `NOT_EXECUTED`. Optional safe-fault and load evidence can be consumed with `NODE8I_FAULT_EVIDENCE_FILE` and `NODE8I_LOAD_EVIDENCE_FILE`. Missing environment-dependent evidence remains `NOT_EXECUTED`, never accepted.
 
-VM restart, Docker-daemon restart, true Internet outage, true backup-target outage, real disk pressure, and a full replacement-host restore drill remain `MANUAL_PENDING`. NODE-8J must execute them on the designated disposable Oracle production-like host and record real evidence. NODE-8I local/CI results must not be presented as that evidence.
+VM restart, Docker-daemon restart, true Internet outage, true backup-target outage, real disk pressure, and a full replacement-host restore drill remain `MANUAL_PENDING`. NODE-8J must execute them on the designated production or disposable replacement Linux/x86_64 host and record real evidence. NODE-8I local/CI results must not be presented as that evidence.

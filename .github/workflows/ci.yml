@@ -130,6 +130,7 @@ jobs:
           bash -n deploy/production/scripts/provision-db-roles.sh
           bash -n deploy/production/scripts/network-audit.sh
           bash -n deploy/production/scripts/ops-snapshot.sh
+          bash -n deploy/production/scripts/host-preflight.sh
           bash -n deploy/production/scripts/oracle-host-preflight.sh
           bash -n deploy/production/scripts/record-manual-acceptance.sh
           bash -n deploy/production/scripts/final-acceptance.sh

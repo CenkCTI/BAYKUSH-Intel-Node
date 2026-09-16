@@ -174,6 +174,9 @@ services:
       - ${NVD_API_KEY_HOST_FILE:-/dev/null}:/run/secrets/providers/nvd_api_key:ro
       - ${THREATFOX_AUTH_KEY_HOST_FILE:-/dev/null}:/run/secrets/providers/threatfox_auth_key:ro
       - ${MALWAREBAZAAR_AUTH_KEY_HOST_FILE:-/dev/null}:/run/secrets/providers/malwarebazaar_auth_key:ro
+    networks:
+      - backend
+      - egress
     depends_on:
       migrate:
         condition: service_completed_successfully
@@ -191,6 +194,9 @@ services:
     volumes:
       - ${BAYKUSH_SECRET_DIR}/db_ingest_url:/run/secrets/baykush/db_ingest_url:ro
       - ${NVD_API_KEY_HOST_FILE:-/dev/null}:/run/secrets/providers/nvd_api_key:ro
+    networks:
+      - backend
+      - egress
     depends_on:
       migrate:
         condition: service_completed_successfully
@@ -240,6 +246,9 @@ services:
     volumes:
       - ${BAYKUSH_SECRET_DIR}/db_projection_url:/run/secrets/baykush/db_projection_url:ro
       - ${IPINFO_LITE_TOKEN_HOST_FILE:-/dev/null}:/run/secrets/providers/ipinfo_lite_token:ro
+    networks:
+      - backend
+      - egress
     depends_on:
       migrate:
         condition: service_completed_successfully
@@ -261,6 +270,9 @@ services:
       STREAM_SEGMENT_MAX_BYTES: ${STREAM_SEGMENT_MAX_BYTES:-4194304}
     volumes:
       - ${BAYKUSH_SECRET_DIR}/db_stream_url:/run/secrets/baykush/db_stream_url:ro
+    networks:
+      - backend
+      - egress
     depends_on:
       migrate:
         condition: service_completed_successfully
@@ -290,6 +302,9 @@ services:
     volumes:
       - ${BAYKUSH_SECRET_DIR}/db_recovery_url:/run/secrets/baykush/db_recovery_url:ro
       - baykush_recovery:/var/lib/baykush/recovery
+    networks:
+      - backend
+      - egress
     depends_on:
       migrate:
         condition: service_completed_successfully
@@ -300,6 +315,9 @@ networks:
   backend:
     name: baykush-backend
     internal: true
+  egress:
+    name: baykush-egress
+    internal: false
 
 volumes:
   baykush_pgdata:

@@ -145,6 +145,11 @@ describe("NODE8_OPS_SNAPSHOT_V1 evidence", () => {
     expect(snapshotFixture({ disk: 80 }).problems[0]?.class).toBe("DISK_WARNING");
     expect(snapshotFixture({ disk: 90 }).problems[0]?.class).toBe("DISK_CRITICAL");
   });
+  it("allows a bounded operator-selected disk path while preserving the production default", () => {
+    const script = readFileSync("deploy/production/scripts/ops-snapshot.sh", "utf8");
+    expect(script).toContain("DISK_PATH=${DISK_PATH:-/var/lib/docker}");
+    expect(script).toContain('df -P "$DISK_PATH"');
+  });
   it("reports stale and missing backup evidence without false green", () => {
     expect(snapshotFixture({ backupAgeHours: 9 }).problems[0]?.class).toBe("BACKUP_STALE");
     expect(snapshotFixture({ backupAgeHours: null }).problems[0]?.class).toBe("BACKUP_UNKNOWN");

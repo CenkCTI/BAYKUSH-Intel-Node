@@ -14,7 +14,7 @@ export const SEMANTIC_INVARIANTS = Object.freeze([
   "recovery must preserve provenance", "backup success != restore success", "runtime health != threat level",
 ]);
 export const REQUIRED_GATES = Object.freeze([
-  "ORACLE_HOST_PREFLIGHT", "EXACT_RELEASE_DIGEST", "TLS_HTTPS_CADDY", "INTENDED_HOST_INGRESS",
+  "HOST_PREFLIGHT", "EXACT_RELEASE_DIGEST", "TLS_HTTPS_CADDY", "INTENDED_HOST_INGRESS",
   "POSTGRES_NOT_PUBLIC", "NODE_API_NOT_PUBLIC", "SECRET_PERMISSIONS", "RUNTIME_HARDENING",
   "NETWORK_AUDIT", "API_AUTH_SCOPES", "DB_LEAST_PRIVILEGE", "OFFHOST_BACKUP",
   "REPLACEMENT_HOST_RESTORE", "VM_RESTART", "DOCKER_DAEMON_RESTART", "INTERNET_OUTAGE",
@@ -64,13 +64,13 @@ export function aggregateAcceptance(input) {
   const { expectedImage, release, backup, restore, operations, resilience, preflight, manual = [], citem } = input;
   if (!digestPattern.test(expectedImage ?? "")) throw new Error("expected release image must be digest-pinned");
   [release, backup, restore, operations, resilience, preflight, citem, ...manual].filter(Boolean).forEach((v) => assertNoSecrets(v));
-  for (const [name, value, schema] of [["release",release,"NODE8_RELEASE_EVIDENCE_V1"],["backup",backup,"NODE8_BACKUP_GATE_EVIDENCE_V1"],["restore",restore,"NODE8_RESTORE_ACCEPTANCE_V1"],["operations",operations,"NODE8_OPS_SNAPSHOT_V1"],["resilience",resilience,"NODE8I_RESILIENCE_ACCEPTANCE_V1"],["preflight",preflight,"NODE8_ORACLE_HOST_PREFLIGHT_V1"],["citem",citem,"CITEM_NODE8_CUTOVER_EVIDENCE_V1"]]) {
+  for (const [name, value, schema] of [["release",release,"NODE8_RELEASE_EVIDENCE_V1"],["backup",backup,"NODE8_BACKUP_GATE_EVIDENCE_V1"],["restore",restore,"NODE8_RESTORE_ACCEPTANCE_V1"],["operations",operations,"NODE8_OPS_SNAPSHOT_V1"],["resilience",resilience,"NODE8I_RESILIENCE_ACCEPTANCE_V1"],["preflight",preflight,"NODE8_HOST_PREFLIGHT_V1"],["citem",citem,"CITEM_NODE8_CUTOVER_EVIDENCE_V1"]]) {
     if (value !== undefined && (!plain(value) || value.schemaVersion !== schema)) throw new Error(`${name} evidence has wrong schema version`);
   }
   const byScenario = new Map();
   for (const record of manual) { validateManualEvidence(record, { expectedImage }); if (byScenario.has(record.scenarioId)) throw new Error(`duplicate manual scenario: ${record.scenarioId}`); byScenario.set(record.scenarioId, record); }
   const releaseOk = accepted(release, "NODE8_RELEASE_EVIDENCE_V1", (x) => x.accepted === true && x.result === "ACCEPTED" && x.image === expectedImage && x.smokeAccepted === true && x.runtimeAuditAccepted === true && x.networkAuditAccepted === true);
-  const preflightOk = accepted(preflight, "NODE8_ORACLE_HOST_PREFLIGHT_V1", (x) => x.result === "PASS" && x.releaseImage === expectedImage);
+  const preflightOk = accepted(preflight, "NODE8_HOST_PREFLIGHT_V1", (x) => x.result === "PASS" && x.releaseImage === expectedImage && x.providerIndependent === true);
   const backupOk = accepted(backup, "NODE8_BACKUP_GATE_EVIDENCE_V1", (x) => x.accepted === true || x.durable === true);
   const restoreOk = accepted(restore, "NODE8_RESTORE_ACCEPTANCE_V1", (x) => x.accepted === true && x.provenanceVerified === true && x.immutableRevisionGuardsVerified === true);
   const opsOk = accepted(operations, "NODE8_OPS_SNAPSHOT_V1", (x) => x.status === "HEALTHY" && x.containsSecrets === false);
@@ -78,7 +78,7 @@ export function aggregateAcceptance(input) {
   const citemOk = accepted(citem, "CITEM_NODE8_CUTOVER_EVIDENCE_V1", (x) => x.result === "PASS" && x.releaseImage === expectedImage && x.serverToServerHttps === true && x.nodeTokenServerOnly === true && x.browserBearerCredentialObserved === false && x.scopeRestricted === true && x.realNodeDataObserved === true && x.unavailabilityExplicitlyDegraded === true && x.unavailabilityReportedAsZero === false && x.canonicalMutationPossible === false && x.authFailureSafe === true && x.endToEndReadPath === true);
   const manualPass = (id) => byScenario.get(id)?.result === "PASS";
   const gates = {
-    ORACLE_HOST_PREFLIGHT: preflightOk, EXACT_RELEASE_DIGEST: releaseOk, TLS_HTTPS_CADDY: manualPass("TLS_NETWORK_ACCEPTANCE"),
+    HOST_PREFLIGHT: preflightOk, EXACT_RELEASE_DIGEST: releaseOk, TLS_HTTPS_CADDY: manualPass("TLS_NETWORK_ACCEPTANCE"),
     INTENDED_HOST_INGRESS: manualPass("TLS_NETWORK_ACCEPTANCE"), POSTGRES_NOT_PUBLIC: preflightOk && manualPass("TLS_NETWORK_ACCEPTANCE"), NODE_API_NOT_PUBLIC: preflightOk && manualPass("TLS_NETWORK_ACCEPTANCE"),
     SECRET_PERMISSIONS: preflightOk && manualPass("SECURITY_BOUNDARIES"), RUNTIME_HARDENING: releaseOk && manualPass("SECURITY_BOUNDARIES"), NETWORK_AUDIT: releaseOk && manualPass("TLS_NETWORK_ACCEPTANCE"),
     API_AUTH_SCOPES: manualPass("SECURITY_BOUNDARIES"), DB_LEAST_PRIVILEGE: manualPass("SECURITY_BOUNDARIES"), OFFHOST_BACKUP: backupOk && manualPass("OFFHOST_BACKUP"),
@@ -93,5 +93,5 @@ export function aggregateAcceptance(input) {
   return { schemaVersion: "NODE8_PRODUCTION_ACCEPTANCE_V1", result, accepted: result === "ACCEPTED", synthetic: input.synthetic === true,
     observedAt: new Date().toISOString(), expectedReleaseImage: expectedImage, gates: REQUIRED_GATES.map((id) => ({ id, status: gates[id] ? "PASS" : explicitFailure ? "FAIL_OR_MISSING" : "MANUAL_PENDING" })),
     semanticInvariants: SEMANTIC_INVARIANTS, evidenceSetSha256: createHash("sha256").update(JSON.stringify({ expectedImage, gates })).digest("hex"), containsSecrets: false,
-    note: input.synthetic === true ? "SYNTHETIC CONTRACT VALIDATION ONLY — not production acceptance." : "ACCEPTED requires real Oracle-host and CİTEM cutover evidence; CI green is insufficient." };
+    note: input.synthetic === true ? "SYNTHETIC CONTRACT VALIDATION ONLY — not production acceptance." : "ACCEPTED requires real production-host and CİTEM cutover evidence; CI green is insufficient." };
 }

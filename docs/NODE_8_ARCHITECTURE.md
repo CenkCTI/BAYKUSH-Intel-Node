@@ -172,7 +172,7 @@ Secrets are not durable application data and must not be copied into database or
 
 - production CİTEM server-side Node URL/credential configuration;
 - degraded-state behavior when Node is unavailable;
-- real Oracle-host acceptance;
+- real provider-independent production-host acceptance;
 - restore/reboot/network-boundary verification;
 - final `NODE8_PRODUCTION_ACCEPTANCE_V1` evidence.
 
@@ -186,7 +186,7 @@ Every accepted production release records at minimum:
   "accepted": true,
   "nodeCommit": "<git sha>",
   "imageDigest": "sha256:<digest>",
-  "deploymentTarget": "oracle-vm",
+  "deploymentTarget": "compatible-linux-x86_64-host",
   "restoreVerified": true,
   "rebootRecoveryVerified": true,
   "networkBoundaryVerified": true,
