@@ -6,6 +6,7 @@ ENV_FILE=${ENV_FILE:-/etc/baykush/runtime.env}
 COMPOSE_FILE=${COMPOSE_FILE:-/opt/baykush-node/compose.yml}
 BACKUP_ENV_FILE=${BACKUP_ENV_FILE:-/etc/baykush/backup.env}
 OPS_EVIDENCE_DIR=${OPS_EVIDENCE_DIR:-/var/lib/baykush/ops-evidence}
+DISK_PATH=${DISK_PATH:-/var/lib/docker}
 DISK_WARN_PERCENT=${DISK_WARN_PERCENT:-80}
 DISK_CRITICAL_PERCENT=${DISK_CRITICAL_PERCENT:-90}
 BACKUP_MAX_AGE_HOURS=${BACKUP_MAX_AGE_HOURS:-8}
@@ -32,7 +33,14 @@ else
   printf 'failed\n' > "$tmp/containers.status"
   : > "$tmp/containers.json"
 fi
-if df -P /var/lib/docker 2>/dev/null | tail -n1 > "$tmp/disk.txt" || df -P / | tail -n1 > "$tmp/disk.txt"; then
+if [[ -e "$DISK_PATH" ]]; then
+  if df -P "$DISK_PATH" 2>/dev/null | tail -n1 > "$tmp/disk.txt"; then
+    printf 'ok\n' > "$tmp/disk.status"
+  else
+    printf 'failed\n' > "$tmp/disk.status"
+    : > "$tmp/disk.txt"
+  fi
+elif [[ "$DISK_PATH" == "/var/lib/docker" ]] && df -P / 2>/dev/null | tail -n1 > "$tmp/disk.txt"; then
   printf 'ok\n' > "$tmp/disk.status"
 else
   printf 'failed\n' > "$tmp/disk.status"
