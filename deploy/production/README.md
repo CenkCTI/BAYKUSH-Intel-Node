@@ -1,6 +1,6 @@
 # BAYKUSH Intelligence Node — production host bootstrap
 
-This directory is the provider-independent production deployment surface introduced by NODE-8A.
+This directory is the provider-independent production deployment surface introduced by NODE-8.
 
 ## Host prerequisites
 
@@ -38,16 +38,43 @@ Copy the contents of this directory to `/opt/baykush-node`:
   scripts/
 ```
 
-Copy `env.example` to `/etc/baykush/runtime.env`, populate real values on the host, then enforce:
+Copy `env.example` to `/etc/baykush/runtime.env`, populate only paths/non-secret configuration, then enforce `root:root` mode `0600`.
+
+## Provision host-private secrets
+
+Create a dedicated non-interactive host group with the numeric GID configured by `BAYKUSH_SECRET_GID` (default example `2000`). Do not add human login users to that group.
+
+Create `/etc/baykush/secrets` as:
 
 ```text
-owner: root:root
-mode: 0600
+owner uid: 0 (root)
+group gid: BAYKUSH_SECRET_GID
+mode: 0750
 ```
 
-Do not commit the populated file.
+Required files are:
 
-NODE-8B replaces raw secret values in this env file with file-backed secret mounts. Until that PR is merged, this deployment descriptor is an architecture/acceptance foundation and must not be treated as final secret handling.
+```text
+postgres_password
+database_url
+api_credentials.json
+smoke_api_token
+```
+
+Each secret file must be owned by uid `0`, group `BAYKUSH_SECRET_GID`, mode `0440`. This allows the existing non-root Node runtime to read only the read-only mounted secrets through its supplemental group without running application processes as root.
+
+Optional provider files may be added only when configured in `runtime.env`:
+
+```text
+nvd_api_key
+threatfox_auth_key
+malwarebazaar_auth_key
+ipinfo_lite_token
+```
+
+Use `api-credentials.example.json` only as a schema example. Generate random real tokens out of band and never commit the populated registry. `smoke_api_token` is a host-side copy of one active credential carrying both `techint:read` and `sources:read`.
+
+The `database_url` file is the transitional shared database URL. NODE-8C replaces it with role-specific connection files without returning raw credentials to `runtime.env`.
 
 ## Image identity
 
@@ -65,21 +92,31 @@ Run:
 sudo bash /opt/baykush-node/scripts/preflight.sh
 ```
 
-The preflight rejects missing prerequisites, unsafe runtime-env ownership/permissions, unconfigured image/hostname, invalid Compose and unexpected host-published service ports.
+The preflight rejects missing prerequisites, unsafe runtime-env or secret permissions/ownership, missing required secrets, unconfigured image/hostname, invalid Compose and unexpected host-published service ports.
 
 ## Deploy
 
-After the later secret/backup gates are present, the normal deployment entry point is:
+After the later backup gate is present, the normal deployment entry point is:
 
 ```text
 sudo bash /opt/baykush-node/scripts/deploy.sh
 ```
 
-NODE-8H extends this script with mandatory pre-deploy backup/release evidence. NODE-8A already establishes the ordering contract:
+NODE-8H extends this script with mandatory pre-deploy backup/release evidence. The ordering contract is already fixed:
 
 ```text
 preflight -> pull -> PostgreSQL -> migrate -> services -> health -> authenticated smoke
 ```
+
+## API credential rotation
+
+Do not replace the only active token in one step. Use additive rotation:
+
+```text
+A -> registry A+B -> update CİTEM to B -> verify -> registry B
+```
+
+Full rules are in `docs/NODE_8_SECRETS_AND_API_SECURITY.md`.
 
 ## systemd
 
@@ -96,4 +133,5 @@ Never use the following as part of normal deploy/rollback/recovery:
 - editing an already-applied migration;
 - rebuilding source manually on the production host;
 - copying real credentials into this repository;
+- placing bearer/provider/database secrets directly in `runtime.env`;
 - exposing PostgreSQL or port 8080 to the public Internet.
