@@ -13,6 +13,20 @@ function assert(condition, message) {
 
 for (const service of expected) assert(config.services?.[service], `missing production service ${service}`);
 assert(config.networks?.backend?.internal === true, "backend network must be internal");
+assert(config.networks?.egress, "provider egress network must exist");
+assert(config.networks.egress.internal !== true, "provider egress network must permit outbound Internet access");
+
+const providerEgressServices = ["worker", "backfill", "discovery", "stream-worker", "recovery-worker"];
+for (const name of providerEgressServices) {
+  const networks = config.services[name].networks ?? {};
+  assert(networks.backend !== undefined, `${name} must retain backend database connectivity`);
+  assert(networks.egress !== undefined, `${name} must join provider egress network`);
+  assert(networks.edge === undefined, `${name} must not join the ingress edge network`);
+}
+for (const name of expected.filter((service) => !providerEgressServices.includes(service))) {
+  assert((config.services[name].networks ?? {}).egress === undefined, `${name} must not join provider egress network`);
+}
+
 assert(!(config.services.postgres.ports?.length), "PostgreSQL must not publish a host port");
 assert(!(config.services.api.ports?.length), "API must not publish a host port");
 
@@ -127,6 +141,8 @@ console.log(JSON.stringify({
   schemaVersion: "NODE8_PRODUCTION_COMPOSE_ACCEPTANCE_V3",
   accepted: true,
   publicServices,
+  providerEgressServices,
+  providerEgressBoundary: true,
   roleSeparatedDatabaseCredentials: true,
   hardenedNodeRuntime: true,
   boundedInfrastructureServices: true,
