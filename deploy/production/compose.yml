@@ -281,7 +281,7 @@ services:
     <<: *node-image
     mem_limit: ${RECOVERY_MEM_LIMIT:-1g}
     cpus: ${RECOVERY_CPUS:-1.00}
-    pids_limit: ${STREAM_PIDS_LIMIT:-192}
+    pids_limit: ${RECOVERY_PIDS_LIMIT:-192}
     command: ["/bin/sh", "scripts/runtime-with-secrets.sh", "node", "dist/recovery/main.js"]
     environment:
       <<: *node-env
