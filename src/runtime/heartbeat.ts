@@ -2,7 +2,7 @@ import { config } from "../config.js";
 import { pool } from "../db/pool.js";
 import { recordHeartbeat } from "./repository.js";
 
-export type RuntimeComponent = "API" | "SCHEDULER" | "WORKER" | "NORMALIZER" | "MEASUREMENT" | "BACKFILL" | "STREAM_WORKER" | "RECOVERY_WORKER";
+export type RuntimeComponent = "API" | "SCHEDULER" | "WORKER" | "NORMALIZER" | "MEASUREMENT" | "BACKFILL" | "STREAM_WORKER" | "RECOVERY_WORKER" | "DISCOVERY_WORKER";
 
 async function persistHeartbeat(component: RuntimeComponent, metadata: Record<string, unknown>): Promise<void> {
   if (component === "API" || component === "SCHEDULER" || component === "WORKER" || component === "NORMALIZER") {

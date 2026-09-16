@@ -12,6 +12,7 @@ import {
 } from "./auth.js";
 import { applyApiSecurityHeaders, requestId, sendEnvelope, sendError } from "./http.js";
 import { handleNode7ReadApi } from "./node7-read-api.js";
+import { handleOpsApi } from "./ops-api.js";
 import { InMemoryApiRateLimiter } from "./rate-limit.js";
 import { handleReadApi } from "./read-api.js";
 
@@ -25,6 +26,7 @@ async function routeRequest(
   url: URL,
   id: string,
 ): Promise<void> {
+  if (await handleOpsApi(request, response, url, id)) return;
   if (await handleNode7ReadApi(request, response, url, id)) return;
   if (await handleReadApi(request, response, url, id)) return;
   if (await handleMeasurementProvenanceApi(request, response, url)) return;

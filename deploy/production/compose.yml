@@ -121,6 +121,7 @@ services:
       DATABASE_URL_FILE: /run/secrets/baykush/db_api_url
       PORT: "8080"
       NODE_INSTANCE_ID: api-1
+      API_HEARTBEAT_MODE: PROBE_ONLY
       BAYKUSH_NODE_API_CREDENTIALS_FILE: /run/secrets/baykush/api_credentials.json
       API_RATE_LIMIT_WINDOW_MS: ${API_RATE_LIMIT_WINDOW_MS:-60000}
       API_RATE_LIMIT_STANDARD: ${API_RATE_LIMIT_STANDARD:-120}
