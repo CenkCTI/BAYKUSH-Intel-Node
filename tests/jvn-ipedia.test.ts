@@ -29,12 +29,38 @@ function rdfFetch(newXml: string, updatedXml: string): typeof fetch {
   };
 }
 
+function references(count: number): string {
+  return Array.from({ length: count }, (_, index) => (
+    `<sec:references source="CVE" id="CVE-2026-${String(10_000 + index)}">https://example.test/references/${index}</sec:references>`
+  )).join("\n");
+}
+
+function entryWithReferences(count: number): string {
+  return entry.replace(
+    /  <sec:references[\s\S]*?<\/sec:references>/u,
+    references(count),
+  );
+}
+
 describe("JVN iPedia source", () => {
   it("parses JVNRSS namespace fields without flattening source identity", () => {
     const parsed = parseJvnIpediaFeed(feed(entry));
     expect(parsed).toHaveLength(1);
     expect(parsed[0]?.identifier).toBe("JVNDB-2026-000001");
     expect(parsed[0]?.references[0]).toEqual({ source: "CVE", id: "CVE-2026-12345", url: "https://www.cve.org/CVERecord?id=CVE-2026-12345" });
+  });
+
+  it("accepts and preserves entries with more than 128 references", () => {
+    const parsed = parseJvnIpediaFeed(feed(entryWithReferences(129)));
+
+    expect(parsed[0]?.references).toHaveLength(129);
+    expect(parsed[0]?.references.at(-1)?.url).toBe("https://example.test/references/128");
+  });
+
+  it("rejects entries above the defensive reference ceiling", () => {
+    expect(() => parseJvnIpediaFeed(feed(entryWithReferences(1_025)))).toThrow(
+      "JVN iPedia entry references exceed defensive limit of 1024",
+    );
   });
 
   it("normalizes a JVN advisory and links CVE identity", () => {

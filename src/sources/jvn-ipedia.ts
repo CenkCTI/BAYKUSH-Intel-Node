@@ -13,6 +13,7 @@ const PUBLIC_REFERENCE = "https://jvndb.jvn.jp/en/feed/";
 const TERMS_REFERENCE = "https://jvn.jp/en/rss/";
 const MAX_RESPONSE_BYTES = 8 * 1024 * 1024;
 const MAX_ENTRIES = 1_000;
+const MAX_REFERENCES_PER_ENTRY = 1_024;
 
 const referenceSchema = z.object({
   source: z.string().max(128).nullable(),
@@ -28,7 +29,10 @@ const entrySchema = z.object({
   publisher: z.string().max(1024).nullable(),
   issued: z.string().max(64).nullable(),
   modified: z.string().max(64).nullable(),
-  references: z.array(referenceSchema).max(128),
+  references: z.array(referenceSchema).max(
+    MAX_REFERENCES_PER_ENTRY,
+    `JVN iPedia entry references exceed defensive limit of ${MAX_REFERENCES_PER_ENTRY}`,
+  ),
 }).strict();
 type JvnEntry = z.infer<typeof entrySchema>;
 
