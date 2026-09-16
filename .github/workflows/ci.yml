@@ -53,6 +53,8 @@ jobs:
         run: npm run test:node8g
       - name: NODE-8H deterministic release and rollback acceptance
         run: npm run test:node8h
+      - name: NODE-8I deterministic fault, provider, auth, and load acceptance
+        run: npm run test:node8i
       - name: NODE-5A source admission acceptance
         run: npm run test:node5a
       - name: Runtime acceptance
