@@ -1,0 +1,224 @@
+name: baykush-intel-node
+
+x-node-image: &node-image
+  image: ${BAYKUSH_NODE_IMAGE:?BAYKUSH_NODE_IMAGE must be an immutable release tag or digest}
+  pull_policy: always
+  restart: unless-stopped
+  networks:
+    - backend
+  logging: &default-logging
+    driver: json-file
+    options:
+      max-size: "10m"
+      max-file: "5"
+
+x-node-env: &node-env
+  DATABASE_URL: ${DATABASE_URL:?DATABASE_URL is required}
+  ENABLE_TEST_SYNTHETIC: "false"
+  WORKER_RETRY_BASE_SECONDS: ${WORKER_RETRY_BASE_SECONDS:-5}
+  WORKER_RETRY_MAX_SECONDS: ${WORKER_RETRY_MAX_SECONDS:-300}
+  SOURCE_HTTP_TIMEOUT_MS: ${SOURCE_HTTP_TIMEOUT_MS:-30000}
+  GLOBAL_MAX_RAW_RECORD_BYTES: ${GLOBAL_MAX_RAW_RECORD_BYTES:-8388608}
+  HEARTBEAT_INTERVAL_MS: ${HEARTBEAT_INTERVAL_MS:-10000}
+
+services:
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    environment:
+      NODE_HOSTNAME: ${NODE_HOSTNAME:?NODE_HOSTNAME is required}
+      ACME_EMAIL: ${ACME_EMAIL:-}
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    networks:
+      - edge
+    depends_on:
+      api:
+        condition: service_healthy
+    logging: *default-logging
+
+  postgres:
+    image: postgres:16-bookworm
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-baykush}
+      POSTGRES_USER: ${POSTGRES_USER:?POSTGRES_USER is required}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+    volumes:
+      - baykush_pgdata:/var/lib/postgresql/data
+    networks:
+      - backend
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB:-baykush}"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    logging: *default-logging
+
+  migrate:
+    <<: *node-image
+    restart: "no"
+    command: ["node", "scripts/migrate.mjs"]
+    environment:
+      <<: *node-env
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  api:
+    <<: *node-image
+    command: ["node", "dist/api/main.js"]
+    environment:
+      <<: *node-env
+      PORT: "8080"
+      NODE_INSTANCE_ID: api-1
+      BAYKUSH_NODE_API_TOKEN: ${BAYKUSH_NODE_API_TOKEN:?BAYKUSH_NODE_API_TOKEN is required}
+    expose:
+      - "8080"
+    networks:
+      - edge
+      - backend
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:8080/v1/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+  scheduler:
+    <<: *node-image
+    command: ["node", "dist/scheduler/main.js"]
+    environment:
+      <<: *node-env
+      NODE_INSTANCE_ID: scheduler-1
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+
+  worker:
+    <<: *node-image
+    command: ["node", "dist/worker/node5-main.js"]
+    environment:
+      <<: *node-env
+      NODE_INSTANCE_ID: worker-1
+      NVD_API_KEY: ${NVD_API_KEY:-}
+      THREATFOX_AUTH_KEY: ${THREATFOX_AUTH_KEY:-}
+      MALWAREBAZAAR_AUTH_KEY: ${MALWAREBAZAAR_AUTH_KEY:-}
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+
+  backfill:
+    <<: *node-image
+    command: ["node", "dist/backfill/main.js"]
+    environment:
+      <<: *node-env
+      NODE_INSTANCE_ID: backfill-1
+      NVD_API_KEY: ${NVD_API_KEY:-}
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+
+  normalizer:
+    <<: *node-image
+    command: ["node", "dist/normalizer/main.js"]
+    environment:
+      <<: *node-env
+      NODE_INSTANCE_ID: normalizer-1
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+
+  measurement:
+    <<: *node-image
+    command: ["node", "dist/measurement/main.js"]
+    environment:
+      <<: *node-env
+      NODE_INSTANCE_ID: measurement-1
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+
+  discovery:
+    <<: *node-image
+    command: ["node", "dist/discovery/worker/main.js"]
+    environment:
+      <<: *node-env
+      NODE_INSTANCE_ID: discovery-1
+      IPINFO_LITE_TOKEN: ${IPINFO_LITE_TOKEN:-}
+      NODE7_GEO_HTTP_TIMEOUT_MS: ${NODE7_GEO_HTTP_TIMEOUT_MS:-8000}
+      NODE7_GEO_REFRESH_HOURS: ${NODE7_GEO_REFRESH_HOURS:-24}
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+
+  stream-worker:
+    <<: *node-image
+    command: ["node", "dist/stream/main.js"]
+    environment:
+      <<: *node-env
+      NODE_INSTANCE_ID: stream-worker-1
+      STREAM_RAW_RETENTION_HOURS: ${STREAM_RAW_RETENTION_HOURS:-48}
+      STREAM_QUEUE_MAX_MESSAGES: ${STREAM_QUEUE_MAX_MESSAGES:-50000}
+      STREAM_QUEUE_MAX_BYTES: ${STREAM_QUEUE_MAX_BYTES:-67108864}
+      STREAM_SEGMENT_MAX_MESSAGES: ${STREAM_SEGMENT_MAX_MESSAGES:-5000}
+      STREAM_SEGMENT_MAX_BYTES: ${STREAM_SEGMENT_MAX_BYTES:-4194304}
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+
+  recovery-worker:
+    <<: *node-image
+    command: ["node", "dist/recovery/main.js"]
+    environment:
+      <<: *node-env
+      NODE_INSTANCE_ID: recovery-worker-1
+      RECOVERY_AUTO_ENABLED: ${RECOVERY_AUTO_ENABLED:-false}
+      RECOVERY_STAGING_DIR: /var/lib/baykush/recovery
+      RECOVERY_DECODER_PATH: /usr/local/bin/baykush-mrt-decoder
+      RECOVERY_MAX_ATTEMPTS: ${RECOVERY_MAX_ATTEMPTS:-4}
+      RECOVERY_ARCHIVE_SETTLE_SECONDS: ${RECOVERY_ARCHIVE_SETTLE_SECONDS:-900}
+      RECOVERY_MAX_ARTIFACT_BYTES: ${RECOVERY_MAX_ARTIFACT_BYTES:-536870912}
+      RECOVERY_MIN_FREE_DISK_BYTES: ${RECOVERY_MIN_FREE_DISK_BYTES:-1073741824}
+      RECOVERY_ARTIFACT_RETENTION_HOURS: ${RECOVERY_ARTIFACT_RETENTION_HOURS:-24}
+      RECOVERY_DECODER_TIMEOUT_MS: ${RECOVERY_DECODER_TIMEOUT_MS:-300000}
+      RECOVERY_DECODER_MAX_OUTPUT_BYTES: ${RECOVERY_DECODER_MAX_OUTPUT_BYTES:-1073741824}
+      RECOVERY_DECODER_MAX_RECORDS: ${RECOVERY_DECODER_MAX_RECORDS:-10000000}
+      RECOVERY_PAUSE_ON_STREAM_UNHEALTHY: ${RECOVERY_PAUSE_ON_STREAM_UNHEALTHY:-true}
+    volumes:
+      - baykush_recovery:/var/lib/baykush/recovery
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=64m
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    pids_limit: 128
+    mem_limit: 1g
+    cpus: 1.0
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+
+networks:
+  edge:
+    name: baykush-edge
+  backend:
+    name: baykush-backend
+    internal: true
+
+volumes:
+  baykush_pgdata:
+  baykush_recovery:
+  caddy_data:
+  caddy_config:

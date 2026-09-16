@@ -99,6 +99,47 @@ jobs:
         run: |
           docker compose config --services | grep -qx discovery
           docker compose config | grep -q 'dist/discovery/worker/main.js'
+      - name: NODE-8A production deployment acceptance
+        env:
+          BAYKUSH_NODE_IMAGE: ghcr.io/cenkcti/baykush-intel-node@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+          NODE_HOSTNAME: node.example.com
+          ACME_EMAIL: ops@example.com
+          POSTGRES_DB: baykush
+          POSTGRES_USER: baykush
+          POSTGRES_PASSWORD: ci-only-password
+          DATABASE_URL: postgres://baykush:ci-only-password@postgres:5432/baykush
+          BAYKUSH_NODE_API_TOKEN: 0123456789abcdef0123456789abcdef
+        run: |
+          bash -n deploy/production/scripts/preflight.sh
+          bash -n deploy/production/scripts/deploy.sh
+          bash -n deploy/production/scripts/smoke-test.sh
+          docker compose -f deploy/production/compose.yml config --format json > /tmp/node8-compose.json
+          node - <<'NODE'
+          const fs = require('node:fs');
+          const config = JSON.parse(fs.readFileSync('/tmp/node8-compose.json', 'utf8'));
+          const expected = ['caddy','postgres','migrate','api','scheduler','worker','backfill','normalizer','measurement','discovery','stream-worker','recovery-worker'];
+          for (const service of expected) {
+            if (!config.services?.[service]) throw new Error(`missing production service ${service}`);
+          }
+          if (!config.networks?.backend?.internal) throw new Error('backend network must be internal');
+          if (config.services.postgres.ports?.length) throw new Error('PostgreSQL must not publish a host port');
+          if (config.services.api.ports?.length) throw new Error('API must not publish a host port');
+          const published = (config.services.caddy.ports ?? []).map((p) => Number(p.published)).sort((a,b)=>a-b);
+          if (!published.includes(80) || !published.includes(443)) throw new Error(`Caddy must publish 80/443: ${published}`);
+          const publicServices = Object.entries(config.services)
+            .filter(([, svc]) => (svc.ports ?? []).length > 0)
+            .map(([name]) => name);
+          if (publicServices.length !== 1 || publicServices[0] !== 'caddy') {
+            throw new Error(`only Caddy may publish host ports: ${publicServices}`);
+          }
+          if ((config.services.api.networks ?? {}).edge === undefined) throw new Error('API must join edge network');
+          if ((config.services.postgres.networks ?? {}).edge !== undefined) throw new Error('PostgreSQL must not join edge network');
+          NODE
+          docker run --rm \
+            -e NODE_HOSTNAME=node.example.com \
+            -e ACME_EMAIL=ops@example.com \
+            -v "$PWD/deploy/production/Caddyfile:/etc/caddy/Caddyfile:ro" \
+            caddy:2-alpine caddy validate --config /etc/caddy/Caddyfile
       - name: Build
         run: npm run build
       - name: Build container including pinned MRT decoder

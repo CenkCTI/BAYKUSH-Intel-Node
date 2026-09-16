@@ -1,0 +1,21 @@
+[Unit]
+Description=BAYKUSH Intelligence Node
+Documentation=https://github.com/CenkCTI/BAYKUSH-Intel-Node
+Requires=docker.service
+After=docker.service network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+WorkingDirectory=/opt/baykush-node
+Environment=COMPOSE_PROJECT_NAME=baykush-intel-node
+ExecStartPre=/usr/bin/docker compose --env-file /etc/baykush/runtime.env -f /opt/baykush-node/compose.yml config -q
+ExecStart=/usr/bin/docker compose --env-file /etc/baykush/runtime.env -f /opt/baykush-node/compose.yml up -d --remove-orphans
+ExecReload=/usr/bin/docker compose --env-file /etc/baykush/runtime.env -f /opt/baykush-node/compose.yml up -d --remove-orphans
+ExecStop=/usr/bin/docker compose --env-file /etc/baykush/runtime.env -f /opt/baykush-node/compose.yml stop -t 45
+TimeoutStartSec=300
+TimeoutStopSec=120
+
+[Install]
+WantedBy=multi-user.target
