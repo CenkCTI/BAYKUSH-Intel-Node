@@ -13,6 +13,7 @@ const TERMS_REFERENCE = "https://www.cisa.gov/notification";
 const MAX_TREE_BYTES = 16 * 1024 * 1024;
 const MAX_ADVISORY_BYTES = 4 * 1024 * 1024;
 const MAX_CHANGED_ENTRIES = 5_000;
+const MAX_VULNERABILITIES_PER_ADVISORY = 4_096;
 const PAGE_SIZE = 10;
 const shaSchema = z.string().regex(/^[0-9a-f]{40}$/);
 
@@ -78,7 +79,10 @@ export const cisaIcsCsafSchema = z.object({
     distribution: z.unknown().optional(),
   }).passthrough(),
   product_tree: z.unknown().optional(),
-  vulnerabilities: z.array(vulnerabilitySchema).max(512).optional(),
+  vulnerabilities: z.array(vulnerabilitySchema).max(
+    MAX_VULNERABILITIES_PER_ADVISORY,
+    `CISA ICS CSAF vulnerabilities exceed defensive limit of ${MAX_VULNERABILITIES_PER_ADVISORY}`,
+  ).optional(),
 }).passthrough();
 type CisaIcsCsaf = z.infer<typeof cisaIcsCsafSchema>;
 
