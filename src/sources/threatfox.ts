@@ -13,7 +13,7 @@ export const THREATFOX_API_URL = new URL("https://threatfox-api.abuse.ch/api/v1/
 
 const MAX_RESPONSE_BYTES = 32 * 1024 * 1024;
 const MAX_REQUEST_BYTES = 16 * 1024;
-const MAX_IOCS_PER_QUERY = 9_999;
+const MAX_IOCS_PER_QUERY = 49_999;
 const MAX_RAW_RECORD_BYTES = 256 * 1024;
 const DAY_MS = 86_400_000;
 const USER_AGENT = "BAYKUSH-Intelligence-Node/0.2 (+https://github.com/CenkCTI/BAYKUSH-Intel-Node)";
