@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { cisaIcsCsafSchema } from "../src/sources/cisa-ics-csaf.js";
+import { canonicalEvidenceDraftSchema } from "../src/contracts/canonical.js";
+import { cisaIcsCsafSchema, normalizeCisaIcsCsafPayload } from "../src/sources/cisa-ics-csaf.js";
 
 function advisory(vulnerabilityCount: number): unknown {
   return {
@@ -28,6 +29,21 @@ describe("CISA ICS CSAF source", () => {
 
     expect(parsed.vulnerabilities).toHaveLength(513);
     expect(parsed.vulnerabilities?.at(-1)?.cve).toBe("CVE-2023-10512");
+  });
+
+  it("normalizes an advisory with more than 256 CVEs into a valid canonical draft", () => {
+    const source = cisaIcsCsafSchema.parse(advisory(544));
+    const normalized = normalizeCisaIcsCsafPayload({
+      kind: "CISA_ICS_CSAF_ADVISORY",
+      source,
+      sourcePath: "2023/icsa-23-348-10.json",
+      sourceCommitSha: "a".repeat(40),
+      blobSha: "b".repeat(40),
+    })[0];
+    const canonical = canonicalEvidenceDraftSchema.parse(normalized);
+
+    expect(canonical.entities).toHaveLength(544);
+    expect(canonical.entities.at(-1)?.key).toBe("CVE-2023-10543");
   });
 
   it("rejects documents above the defensive vulnerability ceiling", () => {

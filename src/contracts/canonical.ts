@@ -27,11 +27,11 @@ export const canonicalEvidenceDraftSchema = z.object({
     kind: canonicalEntityKindSchema,
     key: z.string().min(1).max(1_024),
     label: z.string().min(1).max(1_024).optional(),
-  })).max(256).default([]),
+  })).max(4_096).default([]),
   facts: z.array(z.object({
     predicate: z.string().min(1).max(256),
     value: z.unknown(),
   })).max(512).default([]),
-  references: z.array(z.string().url()).max(64).default([]),
+  references: z.array(z.string().url()).max(128).default([]),
 });
 export type CanonicalEvidenceDraft = z.infer<typeof canonicalEvidenceDraftSchema>;

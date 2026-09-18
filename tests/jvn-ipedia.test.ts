@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { canonicalEvidenceDraftSchema } from "../src/contracts/canonical.js";
 import { admissionPolicyRegistry } from "../src/sources/admission/registry.js";
 import { createJvnIpediaAdapter, normalizeJvnIpediaPayload, parseJvnIpediaFeed } from "../src/sources/jvn-ipedia.js";
 
@@ -69,6 +70,17 @@ describe("JVN iPedia source", () => {
     expect(canonical?.recordKind).toBe("SECURITY_ADVISORY");
     expect(canonical?.canonicalKey).toBe("security-advisory:jvn-ipedia:jvndb-2026-000001");
     expect(canonical?.entities).toContainEqual({ kind: "CVE", key: "CVE-2026-12345", label: "CVE-2026-12345" });
+  });
+
+  it("normalizes more than 64 source references into a valid canonical draft", () => {
+    const source = parseJvnIpediaFeed(feed(entryWithReferences(73)))[0];
+    const normalized = normalizeJvnIpediaPayload({ kind: "JVN_IPEDIA_ENTRY", source })[0];
+    const canonical = canonicalEvidenceDraftSchema.parse(normalized);
+    const sourceReferencesFact = canonical.facts.find((fact) => fact.predicate === "jvn_ipedia.references");
+
+    expect(source?.references).toHaveLength(73);
+    expect(canonical.references).toHaveLength(74);
+    expect(sourceReferencesFact?.value).toHaveLength(73);
   });
 
   it("preserves source issued and modified time as UTC instants", async () => {
