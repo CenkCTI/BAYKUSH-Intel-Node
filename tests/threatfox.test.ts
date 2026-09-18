@@ -92,7 +92,7 @@ describe("ThreatFox production adapter", () => {
     expect(adapter.definition.enabledByDefault).toBe(false);
     expect(adapter.definition.semanticBoundary.doesNotRepresent).toContain("attack or victim counts");
     expect(adapter.definition.semanticBoundary.doesNotRepresent).toContain("attacker identity or origin");
-    expect(adapter.maxRecordsPerWorkUnit).toBe(10_000);
+    expect(adapter.maxRecordsPerWorkUnit).toBe(50_000);
   });
 
   it("plans the bounded 1-7 day recovery window and marks unrecoverable gaps", () => {
@@ -105,6 +105,22 @@ describe("ThreatFox production adapter", () => {
       .toEqual({ days: 4, recoveryGapExceeded: false });
     expect(threatFoxRecoveryWindow(NOW, new Date(NOW - 9 * 86_400_000).toISOString()))
       .toEqual({ days: 7, recoveryGapExceeded: true });
+  });
+
+  it("accepts the observed production 7-day snapshot volume above the legacy 9,999 IOC bound", async () => {
+    const data = Array.from({ length: 11_562 }, (_, index) =>
+      ioc(String(index + 1), `ioc-${index + 1}.example`, "domain"),
+    );
+
+    const run = await fetchOnce({ data });
+
+    expect(run.result.records).toHaveLength(11_563);
+    expect(run.adapter.rawPayload(run.result.records[0])).toMatchObject({
+      kind: "THREATFOX_QUERY_MANIFEST",
+      days: 7,
+      recordCount: 11_562,
+      queryStatus: "ok",
+    });
   });
 
   it("uses the exact authenticated POST endpoint and never puts the secret in URL or body", async () => {
